@@ -75,7 +75,7 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
       const user = await getCurrentUser();
 
       if (!user) {
-        router.push(buildRestrictedActionRedirect(RestrictedAction.BOOK, `/user/bookings/${bookingId}/rent`));
+        router.push(buildRestrictedActionRedirect(RestrictedAction.BOOK, `/bookings/${bookingId}/rent`));
         return;
       }
 
@@ -90,7 +90,7 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
         throw new Error("The mock M-Pesa flow did not return a success response.");
       }
 
-      router.push("/user/bookings?payment=rent-pending");
+      router.push("/bookings?payment=rent-pending");
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
@@ -112,7 +112,7 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
         <CardContent className="space-y-2 py-6">
           <h1 className="text-sm font-semibold text-foreground">Rent checkout unavailable</h1>
           <p className="text-xs text-muted-foreground">{error ?? "The booking could not be prepared for rent payment."}</p>
-          <Link href="/user/bookings" className={buttonVariants({ variant: "outline", size: "sm" })}>
+          <Link href="/bookings" className={buttonVariants({ variant: "outline", size: "sm" })}>
             Back to bookings
           </Link>
         </CardContent>
@@ -178,7 +178,7 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
             <Button size="lg" onClick={handlePayRent} disabled={!canPayRent || isSubmitting}>
               {isSubmitting ? "Processing..." : "Pay Rent"}
             </Button>
-            <Link href="/user/bookings" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
+            <Link href="/bookings" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
               Back to bookings
             </Link>
           </div>

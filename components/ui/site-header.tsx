@@ -15,12 +15,12 @@ import { PageShell } from "./page-shell";
 export function SiteHeader() {
   const pathname = usePathname();
   const { status, user } = useAuthStore();
-  const dashboardHref = user ? getRoleHomePath(user.role) : "/login";
-  const homeHref = user?.role === UserRole.ADMIN ? dashboardHref : "/home";
+  const primaryActionHref = user ? getRoleHomePath(user.role) : "/login";
+  const homeHref = user?.role === UserRole.ADMIN ? primaryActionHref : "/";
   const shouldShowPublicBrowse = user?.role !== UserRole.ADMIN;
-  const shouldHideAccountActions = pathname === "/home";
-  const dashboardLabel =
-    user?.role === UserRole.LANDLORD ? "Landlord Portal" : user?.role === UserRole.ADMIN ? "Admin Portal" : "Dashboard";
+  const shouldHideAccountActions = pathname === "/";
+  const primaryActionLabel =
+    user?.role === UserRole.LANDLORD ? "Landlord Portal" : user?.role === UserRole.ADMIN ? "Admin Portal" : "Bookings";
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur">
@@ -61,10 +61,10 @@ export function SiteHeader() {
           {!shouldHideAccountActions && status === "authenticated" && user ? (
             <>
               <Link
-                href={dashboardHref}
-                className={buttonVariants({ variant: pathname.startsWith(dashboardHref) ? "primary" : "outline", size: "md" })}
+                href={primaryActionHref}
+                className={buttonVariants({ variant: pathname.startsWith(primaryActionHref) ? "primary" : "outline", size: "md" })}
               >
-                {dashboardLabel}
+                {primaryActionLabel}
               </Link>
               <LogoutButton variant="ghost" size="md">
                 Log out

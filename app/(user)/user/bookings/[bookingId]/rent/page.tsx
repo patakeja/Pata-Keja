@@ -1,4 +1,4 @@
-import { RentPaymentPanel } from "@/components/features/booking/rent-payment-panel";
+import { redirect } from "next/navigation";
 
 type RentPageProps = {
   params: Promise<{
@@ -9,5 +9,5 @@ type RentPageProps = {
 export default async function RentPaymentPage({ params }: RentPageProps) {
   const { bookingId } = await params;
 
-  return <RentPaymentPanel bookingId={bookingId} />;
+  redirect(`/bookings/${bookingId}/rent`);
 }

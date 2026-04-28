@@ -77,6 +77,19 @@ export type UserBooking = BookingRecord & {
   paymentSummary: BookingPaymentSummary;
 };
 
+export type BookingDetail = UserBooking & {
+  listing: UserBooking["listing"] & {
+    description: string;
+    availableFrom: string | null;
+    mapsLink: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    imagePaths: string[];
+    imageUrls: string[];
+    landlordName: string | null;
+  };
+};
+
 export type ListingBooking = BookingRecord & {
   user: {
     id: string;

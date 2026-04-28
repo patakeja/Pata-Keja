@@ -14,7 +14,7 @@ function getRoleHomePath(role: AppRole) {
     return "/landlord/dashboard";
   }
 
-  return "/user/bookings";
+  return "/bookings";
 }
 
 function getAuthenticatedRole(request: NextRequest): AppRole | null {
@@ -69,16 +69,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/user")) {
+  if (pathname.startsWith("/user") || pathname.startsWith("/bookings") || pathname.startsWith("/profile")) {
     if (!role) {
       return createLoginRedirect(request);
     }
 
     return NextResponse.next();
-  }
-
-  if (pathname === "/" && role) {
-    return NextResponse.redirect(new URL(getRoleHomePath(role), request.url));
   }
 
   return NextResponse.next();

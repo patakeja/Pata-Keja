@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { BookingActivityPanel } from "@/components/features/booking/booking-activity-panel";
+import { redirect } from "next/navigation";
 
 export default async function UserBookingsPage() {
-  return <BookingActivityPanel />;
+  redirect("/bookings");
 }

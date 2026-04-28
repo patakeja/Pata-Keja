@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { HomePageContent } from "@/components/features/listings/home-page-content";
 
 export default function RootPage() {
-  redirect("/home");
+  return <HomePageContent />;
 }

@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/store";
 
 type BottomNavItem = {
   href: string;
@@ -13,7 +12,7 @@ type BottomNavItem = {
   icon: ComponentType<{ className?: string }>;
 };
 
-function HousesIcon({ className }: { className?: string }) {
+function HomeIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
       <path d="M3 10.5 12 4l9 6.5" />
@@ -42,26 +41,23 @@ function ProfileIcon({ className }: { className?: string }) {
 }
 
 const navigationItems: BottomNavItem[] = [
-  { href: "/houses", label: "Houses", icon: HousesIcon },
-  { href: "/user/bookings", label: "Bookings", icon: BookingsIcon },
-  { href: "/user/profile", label: "Profile", icon: ProfileIcon }
+  { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/bookings", label: "Bookings", icon: BookingsIcon },
+  { href: "/profile", label: "Profile", icon: ProfileIcon }
 ];
+
+function isActivePath(pathname: string, href: string) {
+  if (href === "/") {
+    return pathname === "/" || pathname.startsWith("/listing/") || pathname.startsWith("/houses") || pathname.startsWith("/deposit/");
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { status, user } = useAuthStore();
 
-  if (status !== "authenticated" || !user) {
-    return null;
-  }
-
-  if (
-    pathname === "/login" ||
-    pathname === "/signup" ||
-    pathname.startsWith("/auth/") ||
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/landlord")
-  ) {
+  if (pathname.startsWith("/auth/callback")) {
     return null;
   }
 
@@ -70,7 +66,7 @@ export function BottomNav() {
       <div className="mx-auto grid h-14 max-w-xl grid-cols-3 px-2">
         {navigationItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const isActive = isActivePath(pathname, item.href);
 
           return (
             <Link

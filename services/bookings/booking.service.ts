@@ -3,7 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { BOOKING_RESERVATION_WINDOW_HOURS } from "@/config/app";
 import { PREBOOK_DEPOSIT_RATIO, PREBOOK_REFUND_EXPLANATION } from "@/config/booking";
 import { AuthService } from "@/services/auth/auth.service";
+import { ChatService } from "@/services/chat/chat.service";
 import { ServiceError } from "@/services/shared/service-error";
+import { ImageService } from "@/services/storage/image.service";
 import type { Database } from "@/types/database";
 import {
   BookingStatus,
@@ -11,6 +13,7 @@ import {
   PaymentType,
   ServiceErrorCode,
   UserRole,
+  type BookingDetail,
   type BookingInterest,
   type BookingPolicy,
   type BookingPaymentSummary,
@@ -46,15 +49,28 @@ type BookingWithListingRow = BookingRow & {
     area: { name: string } | null;
   }) | null;
 };
+type BookingDetailRow = BookingRow & {
+  payments: PaymentRow[] | null;
+  listing: (ListingRow & {
+    county: { name: string } | null;
+    town: { name: string } | null;
+    area: { name: string } | null;
+    landlord: Pick<UserRow, "id" | "full_name" | "phone"> | null;
+  }) | null;
+};
 type BookingWithUserRow = BookingRow & {
   user: Pick<UserRow, "id" | "full_name" | "phone" | "role"> | null;
 };
 
 export class BookingService {
   private readonly authService: AuthService;
+  private readonly chatService: ChatService;
+  private readonly imageService: ImageService;
 
   constructor(private readonly clientFactory: () => ServiceClient) {
     this.authService = new AuthService(clientFactory);
+    this.chatService = new ChatService(clientFactory);
+    this.imageService = new ImageService(clientFactory);
   }
 
   getPolicy(): BookingPolicy {
@@ -143,7 +159,70 @@ export class BookingService {
       throw this.translateBookingMutationError(error);
     }
 
+    try {
+      await this.chatService.ensureConversationForBooking(data.id, client);
+    } catch (conversationError) {
+      await client.from("bookings").delete().eq("id", data.id);
+      throw conversationError;
+    }
+
     return this.mapBookingRecord(data);
+  }
+
+  async getBookingById(bookingId: string): Promise<BookingDetail> {
+    const client = this.clientFactory();
+    const actor = await this.authService.requireCurrentUser(client);
+    const { data, error } = await client
+      .from("bookings")
+      .select(
+        `
+          *,
+          payments:payments(
+            id,
+            booking_id,
+            user_id,
+            amount,
+            payment_type,
+            method,
+            status,
+            commission_amount,
+            refund_amount,
+            created_at,
+            updated_at
+          ),
+          listing:listings(
+            *,
+            county:counties(name),
+            town:towns(name),
+            area:areas(name),
+            landlord:users!listings_landlord_id_fkey(
+              id,
+              full_name,
+              phone
+            )
+          )
+        `
+      )
+      .eq("id", bookingId)
+      .maybeSingle();
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load the booking.", error);
+    }
+
+    if (!data) {
+      throw new ServiceError(ServiceErrorCode.NOT_FOUND, "The requested booking does not exist.");
+    }
+
+    const row = data as BookingDetailRow;
+    this.assertBookingAccess(actor.id, actor.role, row);
+    const imagePaths = this.imageService.normalizeStoredPaths(row.listing?.image_paths ?? []);
+    const signedUrlMap =
+      imagePaths.length > 0
+        ? await this.imageService.getSignedImageUrlMap(imagePaths).catch(() => ({}))
+        : {};
+
+    return this.mapBookingDetail(row, signedUrlMap);
   }
 
   async getUserBookings(userId?: string): Promise<UserBooking[]> {
@@ -370,6 +449,20 @@ export class BookingService {
     return userId;
   }
 
+  private assertBookingAccess(actorId: string, actorRole: UserRole, row: BookingDetailRow) {
+    if (!row.listing) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Booking listing relation is missing.");
+    }
+
+    if (actorRole === UserRole.ADMIN) {
+      return;
+    }
+
+    if (row.user_id !== actorId && row.listing.landlord_id !== actorId) {
+      throw new ServiceError(ServiceErrorCode.FORBIDDEN, "You do not have access to this booking.");
+    }
+  }
+
   private buildExpiresAt(holdDurationHours: number, now = new Date()) {
     return new Date(now.getTime() + this.normalizeHoldDuration(holdDurationHours) * 60 * 60 * 1000).toISOString();
   }
@@ -475,6 +568,45 @@ export class BookingService {
         phone: row.user.phone,
         role: row.user.role
       }
+    };
+  }
+
+  private mapBookingDetail(row: BookingDetailRow, signedUrlMap: Record<string, string>): BookingDetail {
+    const base = this.mapBookingRecord(row);
+
+    if (!row.listing) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Booking listing relation is missing.");
+    }
+
+    const imagePaths = this.imageService.normalizeStoredPaths(row.listing.image_paths ?? []);
+
+    return {
+      ...base,
+      listing: {
+        id: row.listing.id,
+        title: row.listing.title,
+        price: this.toNumber(row.listing.price),
+        listingType: row.listing.listing_type,
+        houseType: row.listing.house_type,
+        areaName: row.listing.area?.name ?? "",
+        townName: row.listing.town?.name ?? "",
+        countyName: row.listing.county?.name ?? "",
+        depositAmount: this.toNumber(row.listing.deposit_amount),
+        holdDurationHours: this.normalizeHoldDuration(row.listing.hold_duration_hours),
+        maxActiveBookings: row.listing.max_active_bookings,
+        totalUnits: row.listing.total_units,
+        isActive: row.listing.is_active,
+        isVerified: row.listing.is_verified,
+        description: row.listing.description,
+        availableFrom: row.listing.available_from,
+        mapsLink: row.listing.maps_link,
+        latitude: row.listing.latitude,
+        longitude: row.listing.longitude,
+        imagePaths,
+        imageUrls: imagePaths.map((path) => signedUrlMap[path]).filter((value): value is string => Boolean(value)),
+        landlordName: row.listing.landlord?.full_name ?? null
+      },
+      paymentSummary: this.mapBookingPaymentSummary(row, row.listing, row.payments)
     };
   }
 

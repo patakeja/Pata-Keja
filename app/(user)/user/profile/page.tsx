@@ -1,5 +1,5 @@
-import { ProfileSummaryPanel } from "@/components/features/auth/profile-summary-panel";
+import { redirect } from "next/navigation";
 
 export default function UserProfilePage() {
-  return <ProfileSummaryPanel />;
+  redirect("/profile");
 }

@@ -64,7 +64,7 @@ export class AuthService {
       return "/landlord/dashboard";
     }
 
-    return "/user/bookings";
+    return "/bookings";
   }
 
   buildLoginRedirect(nextPath: string) {

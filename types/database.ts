@@ -392,6 +392,143 @@ export type Database = {
           }
         ];
       };
+      conversations: {
+        Row: {
+          id: string;
+          listing_id: string;
+          booking_id: string;
+          tenant_id: string;
+          landlord_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          listing_id: string;
+          booking_id: string;
+          tenant_id: string;
+          landlord_id: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          listing_id?: string;
+          booking_id?: string;
+          tenant_id?: string;
+          landlord_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "conversations_listing_id_fkey";
+            columns: ["listing_id"];
+            isOneToOne: false;
+            referencedRelation: "listings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversations_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: true;
+            referencedRelation: "bookings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversations_landlord_id_fkey";
+            columns: ["landlord_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      conversation_participants: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          user_id: string;
+          created_at: string;
+          last_read_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          user_id: string;
+          created_at?: string;
+          last_read_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          user_id?: string;
+          created_at?: string;
+          last_read_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversation_participants_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      messages: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          sender_id: string;
+          message_text: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          sender_id: string;
+          message_text: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          sender_id?: string;
+          message_text?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey";
+            columns: ["sender_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       finance_settings: {
         Row: {
           id: number;

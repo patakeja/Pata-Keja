@@ -26,7 +26,7 @@ export default async function HousesPage({ searchParams }: HousesPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const search = getSingleValue(resolvedSearchParams.q);
   const listingType = getSingleValue(resolvedSearchParams.type);
-  const houseType = getSingleValue(resolvedSearchParams.houseType);
+  const houseType = getSingleValue(resolvedSearchParams.category) ?? getSingleValue(resolvedSearchParams.houseType);
 
   const filters: ListingFilters = {
     isActive: true,

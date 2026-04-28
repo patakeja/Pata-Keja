@@ -169,7 +169,7 @@ export function SignupForm() {
 
       <p className="text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-primary hover:text-primary/80">
+        <Link href={`/login?redirectTo=${encodeURIComponent(safeRedirectTo)}`} className="font-medium text-primary hover:text-primary/80">
           Sign in
         </Link>
       </p>

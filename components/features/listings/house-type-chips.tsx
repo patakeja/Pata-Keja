@@ -17,7 +17,7 @@ export function HouseTypeChips({ selectedHouseType }: HouseTypeChipsProps) {
         return (
           <Link
             key={houseType}
-            href={`/houses?houseType=${houseType}`}
+            href={`/houses?category=${houseType}`}
             className={cn(
               "min-w-[132px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm transition",
               isActive

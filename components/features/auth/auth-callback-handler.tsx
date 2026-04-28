@@ -62,7 +62,7 @@ export function AuthCallbackHandler() {
               <Link href="/login" className={buttonVariants({ size: "md" })}>
                 Back to login
               </Link>
-              <Link href="/home" className={buttonVariants({ variant: "outline", size: "md" })}>
+              <Link href="/" className={buttonVariants({ variant: "outline", size: "md" })}>
                 Go home
               </Link>
             </div>

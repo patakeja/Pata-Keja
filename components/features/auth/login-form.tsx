@@ -151,7 +151,7 @@ export function LoginForm() {
 
       <p className="text-sm text-muted-foreground">
         New here?{" "}
-        <Link href="/signup" className="font-medium text-primary hover:text-primary/80">
+        <Link href={`/signup?redirectTo=${encodeURIComponent(safeRedirectTo)}`} className="font-medium text-primary hover:text-primary/80">
           Create an account
         </Link>
       </p>

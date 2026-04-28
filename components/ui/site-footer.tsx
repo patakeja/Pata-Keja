@@ -11,14 +11,20 @@ export function SiteFooter() {
           <span>Browse rentals and short stays fast.</span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Link href="/" className="hover:text-foreground">
+            Home
+          </Link>
           <Link href="/houses" className="hover:text-foreground">
             Houses
           </Link>
+          <Link href="/bookings" className="hover:text-foreground">
+            Bookings
+          </Link>
+          <Link href="/profile" className="hover:text-foreground">
+            Profile
+          </Link>
           <Link href="/admin/dashboard" className="hover:text-foreground">
             Admin
-          </Link>
-          <Link href="/user/bookings" className="hover:text-foreground">
-            User
           </Link>
           <Link href="/landlord/dashboard" className="hover:text-foreground">
             Landlord

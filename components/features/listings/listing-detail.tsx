@@ -1,5 +1,4 @@
 /* eslint-disable @next/next/no-img-element */
-import Link from "next/link";
 
 import { houseTypeLabels, listingTypeLabels } from "@/config/listingPresentation";
 import type { BookingPolicy, ListingDetail as ListingDetailType } from "@/types";
@@ -11,12 +10,10 @@ import { ReserveListingButton } from "./reserve-listing-button";
 
 type ListingDetailProps = {
   listing: ListingDetailType;
-  chatHref: string;
-  locationHref: string;
   bookingPolicy: BookingPolicy;
 };
 
-export function ListingDetail({ listing, chatHref, locationHref, bookingPolicy }: ListingDetailProps) {
+export function ListingDetail({ listing, bookingPolicy }: ListingDetailProps) {
   const galleryItems = listing.imageUrls?.length ? listing.imageUrls : [];
 
   return (
@@ -127,21 +124,17 @@ export function ListingDetail({ listing, chatHref, locationHref, bookingPolicy }
             <div className="space-y-1">
               <h2 className="text-sm font-semibold text-foreground">Unlock full details</h2>
               <p className="text-xs text-muted-foreground">
-                Sign in to unlock exact location, chat with the host, and secure reservation priority.
+                Reserve this house first to unlock exact location, landlord chat, and reservation priority.
               </p>
             </div>
             <div className="space-y-2 text-xs text-muted-foreground">
               <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-2 py-2">
                 <span>Exact location</span>
-                <Link href={locationHref} className="text-primary hover:text-primary/80">
-                  Unlock
-                </Link>
+                <span>After booking</span>
               </div>
               <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-2 py-2">
                 <span>Chat access</span>
-                <Link href={chatHref} className="text-primary hover:text-primary/80">
-                  Unlock
-                </Link>
+                <span>After booking</span>
               </div>
               <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-2 py-2">
                 <span>Reservation priority</span>

@@ -63,33 +63,5 @@ export function BookingActivityPanel() {
     );
   }
 
-  return (
-    <div className="space-y-3">
-      <Card>
-        <CardContent className="grid gap-2 sm:grid-cols-2">
-          <div className="rounded-md bg-muted px-2 py-2">
-            <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Total bookings</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{bookings.length}</p>
-          </div>
-          <div className="rounded-md bg-muted px-2 py-2">
-            <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Active Holds</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">
-              {bookings.filter((booking) => booking.status === "active").length}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="space-y-1">
-          <h2 className="text-sm font-semibold text-foreground">Bookings</h2>
-          <p className="text-xs text-muted-foreground">
-            Deposit state, remaining rent, and expiry countdowns stay visible here for quick follow-up.
-          </p>
-        </CardContent>
-      </Card>
-
-      <PreBookedList items={bookings} />
-    </div>
-  );
+  return <PreBookedList items={bookings} />;
 }
