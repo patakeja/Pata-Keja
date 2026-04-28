@@ -1,15 +1,73 @@
-import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
-import { AuthService } from "@/services/auth/auth.service";
-import { RestrictedAction, type AccessContext, type SignInInput, type SignUpInput, UserRole } from "@/types";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
-const authService = new AuthService();
+import { getSupabaseClient } from "@/lib/supabaseClient";
+import { AuthService } from "@/services/auth/auth.service";
+import {
+  RestrictedAction,
+  type AccessContext,
+  type AuthCallbackResult,
+  type AuthenticatedUser,
+  type SignInInput,
+  type SignUpInput,
+  type UserProfileUpdateInput,
+  UserRole
+} from "@/types";
+
+const authService = new AuthService(getSupabaseClient);
+
+export async function signUp(payload: SignUpInput) {
+  return authService.signUp(payload.email, payload.password, payload);
+}
+
+export async function signIn(credentials: SignInInput) {
+  return authService.signIn(credentials.email, credentials.password);
+}
+
+export async function signInWithGoogle(nextPath?: string) {
+  return authService.signInWithGoogle(nextPath);
+}
+
+export async function handleAuthCallback(callbackUrl?: string): Promise<AuthCallbackResult> {
+  return authService.handleAuthCallback(callbackUrl);
+}
+
+export async function getCurrentUser() {
+  return authService.getCurrentUser();
+}
+
+export async function getCurrentUserWithProfile() {
+  return authService.getCurrentUserWithProfile();
+}
+
+export async function updateProfile(input: UserProfileUpdateInput): Promise<AuthenticatedUser> {
+  return authService.updateProfile(input);
+}
+
+export async function getSession(): Promise<Session | null> {
+  return authService.getSession();
+}
+
+export function onAuthStateChange(
+  callback: (payload: {
+    event: AuthChangeEvent;
+    session: Session | null;
+    user: AuthenticatedUser | null;
+    isNewUser: boolean;
+  }) => void
+) {
+  return authService.onAuthStateChange(callback);
+}
+
+export async function signOut() {
+  return authService.signOut();
+}
 
 export async function signInWithPassword(credentials: SignInInput) {
-  return authService.signInWithPassword(getSupabaseBrowserClient(), credentials);
+  return signIn(credentials);
 }
 
 export async function signUpWithPassword(payload: SignUpInput) {
-  return authService.signUpWithPassword(getSupabaseBrowserClient(), payload);
+  return signUp(payload);
 }
 
 export function getGuestAccessContext() {
@@ -26,6 +84,18 @@ export function canTriggerRestrictedAction(context: AccessContext, action: Restr
 
 export function buildRestrictedActionRedirect(action: RestrictedAction, nextPath: string) {
   return authService.buildRestrictedActionRedirect(action, nextPath);
+}
+
+export function buildLoginRedirect(nextPath: string) {
+  return authService.buildLoginRedirect(nextPath);
+}
+
+export function getRoleHomePath(role: Exclude<UserRole, UserRole.GUEST>) {
+  return authService.getRoleHomePath(role);
+}
+
+export function resolveSafeAppPath(path: string | null | undefined, fallbackPath?: string) {
+  return authService.resolveSafeAppPath(path, fallbackPath);
 }
 
 export { authService };

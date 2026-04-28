@@ -24,11 +24,11 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
   const nextPath = `/listing/${id}`;
 
   return (
-    <PageShell className="py-10 pb-20">
+    <PageShell className="py-3 pb-6">
       <ListingDetail
         listing={listing}
         bookingPolicy={bookingService.getPolicy()}
-        reserveHref={buildRestrictedActionRedirect(RestrictedAction.BOOK, nextPath)}
+        reserveHref={`/deposit/${id}`}
         chatHref={buildRestrictedActionRedirect(RestrictedAction.CHAT, nextPath)}
         locationHref={buildRestrictedActionRedirect(RestrictedAction.VIEW_EXACT_LOCATION, nextPath)}
       />

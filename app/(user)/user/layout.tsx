@@ -1,16 +1,20 @@
 import type { ReactNode } from "react";
 
+import { AuthGuard } from "@/components/features/auth/auth-guard";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { userNavigation } from "@/config/navigation";
+import { UserRole } from "@/types";
 
 export default function UserLayout({ children }: { children: ReactNode }) {
   return (
-    <DashboardShell
-      title="User Dashboard"
-      subtitle="Reserved for authenticated renters and future profile-aware workflows."
-      navigation={userNavigation}
-    >
-      {children}
-    </DashboardShell>
+    <AuthGuard allowedRoles={[UserRole.TENANT, UserRole.LANDLORD, UserRole.ADMIN]}>
+      <DashboardShell
+        title="User Dashboard"
+        subtitle="Reserved for authenticated tenants and future profile-aware workflows."
+        navigation={userNavigation}
+      >
+        {children}
+      </DashboardShell>
+    </AuthGuard>
   );
 }

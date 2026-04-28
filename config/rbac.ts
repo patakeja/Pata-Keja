@@ -13,7 +13,7 @@ export enum AppCapability {
 
 export const roleCapabilities: Record<UserRole, AppCapability[]> = {
   [UserRole.GUEST]: [AppCapability.BROWSE_LISTINGS],
-  [UserRole.RENTER]: [
+  [UserRole.TENANT]: [
     AppCapability.BROWSE_LISTINGS,
     AppCapability.VIEW_EXACT_LOCATION,
     AppCapability.CREATE_BOOKING,

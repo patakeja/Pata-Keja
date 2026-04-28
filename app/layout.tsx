@@ -3,6 +3,7 @@ import { Fraunces, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { APP_NAME, APP_TAGLINE } from "@/config/app";
+import { AuthStoreProvider } from "@/store";
 
 import "./globals.css";
 
@@ -27,7 +28,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" className={`${manrope.variable} ${fraunces.variable}`}>
-      <body className="min-h-screen font-[family:var(--font-sans)]">{children}</body>
+      <body className="min-h-screen font-[family:var(--font-sans)]">
+        <AuthStoreProvider>{children}</AuthStoreProvider>
+      </body>
     </html>
   );
 }

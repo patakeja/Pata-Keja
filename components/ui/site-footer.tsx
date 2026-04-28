@@ -4,13 +4,16 @@ import { PageShell } from "@/components/ui/page-shell";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border/70 bg-white/70 py-10">
-      <PageShell className="flex flex-col gap-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <div>
+    <footer className="border-t border-border/70 bg-white py-3">
+      <PageShell className="flex flex-col gap-2 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
           <p className="font-medium text-foreground">Pata Keja</p>
-          <p>Production-ready scaffold for rentals, short stays, and reservations.</p>
+          <span>Browse rentals and short stays fast.</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/houses" className="hover:text-foreground">
+            Houses
+          </Link>
           <Link href="/admin/dashboard" className="hover:text-foreground">
             Admin
           </Link>

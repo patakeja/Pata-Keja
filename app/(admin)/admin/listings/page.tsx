@@ -1,11 +1,11 @@
-import { PlaceholderPanel } from "@/components/ui/placeholder-panel";
+import { CreateListingForm } from "@/components/features/listings/create-listing-form";
 
 export default function AdminListingsPage() {
   return (
-    <PlaceholderPanel
-      title="Listing administration"
-      description="Reserved for listing review, takedowns, and policy controls."
-      hint="This view should eventually consume listing moderation services backed by Supabase."
+    <CreateListingForm
+      workspaceLabel="Admin"
+      title="House administration"
+      description="Admins can publish, review, or seed house inventory here while keeping the same service-driven listing pipeline."
     />
   );
 }

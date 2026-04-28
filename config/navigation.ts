@@ -6,7 +6,7 @@ export type NavigationItem = {
 
 export const publicNavigation: NavigationItem[] = [
   { href: "/home", label: "Home" },
-  { href: "/listings", label: "Listings" },
+  { href: "/houses", label: "Houses" },
   { href: "/login", label: "Login" },
   { href: "/signup", label: "Sign Up" }
 ];
@@ -18,14 +18,15 @@ export const userNavigation: NavigationItem[] = [
 ];
 
 export const landlordNavigation: NavigationItem[] = [
-  { href: "/landlord/dashboard", label: "Overview", description: "Portfolio snapshot and performance" },
-  { href: "/landlord/listings", label: "Listings", description: "Manage property inventory" },
-  { href: "/landlord/create-listing", label: "Create Listing", description: "Draft and publish a new listing" }
+  { href: "/landlord/dashboard", label: "Dashboard", description: "Portfolio snapshot and booking activity" },
+  { href: "/landlord/listings", label: "My Houses", description: "Manage availability, images, and rentals" }
 ];
 
 export const adminNavigation: NavigationItem[] = [
-  { href: "/admin/dashboard", label: "Overview", description: "Marketplace operations overview" },
-  { href: "/admin/users", label: "Users", description: "User directory and moderation" },
-  { href: "/admin/listings", label: "Listings", description: "Listing review and curation" },
-  { href: "/admin/bookings", label: "Bookings", description: "Booking queue and disputes" }
+  { href: "/admin/dashboard", label: "Dashboard", description: "Marketplace operations overview" },
+  { href: "/admin/listings", label: "Houses", description: "Listing review and inventory control" },
+  { href: "/admin/landlords", label: "Landlords", description: "Access control and commission settings" },
+  { href: "/admin/featured", label: "Featured", description: "Homepage curation and spotlight control" },
+  { href: "/admin/finances", label: "Finances", description: "Refund settings and payment policy" },
+  { href: "/admin/analytics", label: "Analytics", description: "Area, demand, and marketplace trends" }
 ];

@@ -1,27 +1,41 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { getSupabaseEnvOrThrow, isSupabaseConfigured } from "@/config/env";
+import type { Database } from "@/types";
 
-let browserClient: SupabaseClient | null = null;
+export type AppSupabaseClient = SupabaseClient<Database>;
 
-export function createSupabaseBrowserClient() {
+let browserClient: AppSupabaseClient | null = null;
+
+export function createSupabaseClient() {
   const { supabaseUrl, supabaseAnonKey } = getSupabaseEnvOrThrow();
+  const isBrowser = typeof window !== "undefined";
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    db: {
+      schema: "public"
+    },
     auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true
+      autoRefreshToken: isBrowser,
+      persistSession: isBrowser,
+      detectSessionInUrl: isBrowser
     }
   });
 }
 
-export function getSupabaseBrowserClient() {
+export function getSupabaseClient() {
+  if (typeof window === "undefined") {
+    return createSupabaseClient();
+  }
+
   if (!browserClient) {
-    browserClient = createSupabaseBrowserClient();
+    browserClient = createSupabaseClient();
   }
 
   return browserClient;
 }
+
+export const createSupabaseBrowserClient = createSupabaseClient;
+export const getSupabaseBrowserClient = getSupabaseClient;
 
 export { isSupabaseConfigured };

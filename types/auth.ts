@@ -1,8 +1,13 @@
 export enum UserRole {
   GUEST = "guest",
-  RENTER = "renter",
+  TENANT = "tenant",
   LANDLORD = "landlord",
   ADMIN = "admin"
+}
+
+export enum IdentityProvider {
+  EMAIL = "email",
+  GOOGLE = "google"
 }
 
 export type AuthMode = "guest" | "authenticated";
@@ -26,5 +31,29 @@ export type SignInInput = {
 export type SignUpInput = {
   email: string;
   password: string;
+  fullName?: string;
+  phone?: string | null;
+  role?: Exclude<UserRole, UserRole.GUEST | UserRole.ADMIN>;
+};
+
+export type AuthenticatedUser = {
+  id: string;
+  email: string;
   fullName: string;
+  phone: string | null;
+  role: Exclude<UserRole, UserRole.GUEST>;
+  provider: IdentityProvider;
+  createdAt: string;
+  lastSignInAt: string | null;
+};
+
+export type AuthCallbackResult = {
+  user: AuthenticatedUser;
+  isNewUser: boolean;
+  nextPath: string;
+};
+
+export type UserProfileUpdateInput = {
+  fullName?: string;
+  phone?: string | null;
 };

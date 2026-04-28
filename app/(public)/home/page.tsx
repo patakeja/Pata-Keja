@@ -1,73 +1,58 @@
-import Link from "next/link";
-
+import { HouseTypeChips } from "@/components/features/listings/house-type-chips";
 import { ListingGrid } from "@/components/features/listings/listing-grid";
-import { buttonVariants } from "@/components/ui/button";
+import { ListingRail } from "@/components/features/listings/listing-rail";
+import { Card, CardContent } from "@/components/ui/card";
 import { PageShell } from "@/components/ui/page-shell";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { listingService } from "@/lib/listingService";
+import { ListingType } from "@/types";
 
 export default async function HomePage() {
-  const listings = await listingService.getPublicListings();
-  const featuredListings = listings.slice(0, 2);
+  const listings = await listingService.getPublicListings({ limit: 12 });
+  const rentListings = listings.filter((listing) => listing.type === ListingType.LONG_TERM).slice(0, 8);
+  const shortStayListings = listings.filter((listing) => listing.type === ListingType.SHORT_STAY).slice(0, 8);
 
   return (
-    <div className="space-y-20 py-10 pb-20">
-      <PageShell>
-        <section className="grid gap-10 rounded-[36px] border border-border/60 bg-white/80 p-8 shadow-soft lg:grid-cols-[1.2fr_0.8fr] lg:p-12">
-          <div className="space-y-8">
-            <div className="space-y-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-primary">Hybrid Real Estate Platform</p>
-              <div className="space-y-4">
-                <h1 className="max-w-4xl text-5xl leading-tight tracking-tight text-foreground [font-family:var(--font-display)] sm:text-6xl">
-                  A modular foundation for rentals, short stays, and reservations.
-                </h1>
-                <p className="max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">
-                  Pata Keja is scaffolded for growth: public discovery, role-based workspaces, Supabase-backed auth, and
-                  a booking architecture that can expand without rewriting the app shell.
-                </p>
-              </div>
+    <PageShell className="space-y-4 py-3 pb-6">
+      <Card>
+        <CardContent className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-1">
+            <h1 className="text-base font-semibold tracking-tight text-foreground">Find houses fast</h1>
+            <p className="text-xs text-muted-foreground">
+              Browse long-term rentals and short stays with a compact, fast-scanning layout.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="rounded-md bg-muted px-2 py-2">
+              <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Rent</p>
+              <p className="mt-1 font-semibold text-foreground">{rentListings.length}</p>
             </div>
-
-            <div className="flex flex-wrap gap-3">
-              <Link href="/listings" className={buttonVariants({ size: "lg" })}>
-                Explore listings
-              </Link>
-              <Link href="/signup" className={buttonVariants({ variant: "outline", size: "lg" })}>
-                Create account
-              </Link>
+            <div className="rounded-md bg-muted px-2 py-2">
+              <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Short Stay</p>
+              <p className="mt-1 font-semibold text-foreground">{shortStayListings.length}</p>
+            </div>
+            <div className="rounded-md bg-muted px-2 py-2">
+              <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">All Houses</p>
+              <p className="mt-1 font-semibold text-foreground">{listings.length}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <div className="rounded-[28px] bg-primary p-6 text-primary-foreground">
-              <p className="text-sm uppercase tracking-[0.2em] text-primary-foreground/75">Architecture</p>
-              <p className="mt-4 text-2xl font-semibold">Service-first and feature-isolated</p>
-            </div>
-            <div className="rounded-[28px] bg-secondary p-6 text-secondary-foreground">
-              <p className="text-sm uppercase tracking-[0.2em] text-secondary-foreground/75">Booking</p>
-              <p className="mt-4 text-2xl font-semibold">Multi-interest queue with configurable reservation expiry</p>
-            </div>
-            <div className="rounded-[28px] bg-accent p-6 text-accent-foreground">
-              <p className="text-sm uppercase tracking-[0.2em] text-accent-foreground/75">Deploy</p>
-              <p className="mt-4 text-2xl font-semibold">Vercel-ready Next.js and Supabase scaffold</p>
-            </div>
-          </div>
-        </section>
-      </PageShell>
+      <ListingRail title="Rent" href="/houses?type=long_term" listings={rentListings} />
+      <ListingRail title="Short Stay" href="/houses?type=short_stay" listings={shortStayListings} />
 
-      <PageShell className="space-y-8">
-        <SectionHeading
-          eyebrow="Public Discovery"
-          title="Featured placeholder inventory"
-          description="These cards are sourced through the listing service so the UI stays detached from data and future Supabase queries."
-          actions={
-            <Link href="/listings" className={buttonVariants({ variant: "ghost" })}>
-              View all listings
-            </Link>
-          }
-        />
-        <ListingGrid listings={featuredListings} />
-      </PageShell>
-    </div>
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold text-foreground">Categories</h2>
+        <HouseTypeChips />
+      </section>
+
+      <section className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-foreground">All Houses</h2>
+          <p className="text-[11px] text-muted-foreground">1 column mobile, 2 tablet, 3 desktop</p>
+        </div>
+        <ListingGrid listings={listings} />
+      </section>
+    </PageShell>
   );
 }

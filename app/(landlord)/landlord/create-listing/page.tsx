@@ -1,11 +1,11 @@
-import { PlaceholderPanel } from "@/components/ui/placeholder-panel";
+import { CreateListingForm } from "@/components/features/listings/create-listing-form";
 
 export default function CreateListingPage() {
   return (
-    <PlaceholderPanel
+    <CreateListingForm
+      workspaceLabel="Landlord"
       title="Create listing"
-      description="This route is reserved for the future listing creation flow, draft management, and validation pipelines."
-      hint="Publishing logic should be implemented through listing services and form-specific feature components."
+      description="Add the core listing details, upload a compressed gallery, and publish the cover image order in one flow."
     />
   );
 }

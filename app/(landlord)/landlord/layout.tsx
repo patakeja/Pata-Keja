@@ -1,16 +1,20 @@
 import type { ReactNode } from "react";
 
+import { AuthGuard } from "@/components/features/auth/auth-guard";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { landlordNavigation } from "@/config/navigation";
+import { UserRole } from "@/types";
 
 export default function LandlordLayout({ children }: { children: ReactNode }) {
   return (
-    <DashboardShell
-      title="Landlord Dashboard"
-      subtitle="Dedicated workspace for inventory, interest management, and publishing workflows."
-      navigation={landlordNavigation}
-    >
-      {children}
-    </DashboardShell>
+    <AuthGuard allowedRoles={[UserRole.LANDLORD, UserRole.ADMIN]}>
+      <DashboardShell
+        title="Landlord Dashboard"
+        subtitle="Inventory, booking queue, and rental control for your houses."
+        navigation={landlordNavigation}
+      >
+        {children}
+      </DashboardShell>
+    </AuthGuard>
   );
 }
