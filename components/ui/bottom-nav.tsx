@@ -43,7 +43,7 @@ function ProfileIcon({ className }: { className?: string }) {
 
 const navigationItems: BottomNavItem[] = [
   { href: "/houses", label: "Houses", icon: HousesIcon },
-  { href: "/user/dashboard", label: "Bookings", icon: BookingsIcon },
+  { href: "/user/bookings", label: "Bookings", icon: BookingsIcon },
   { href: "/user/profile", label: "Profile", icon: ProfileIcon }
 ];
 

@@ -17,6 +17,8 @@ import {
   type AuthenticatedUser,
   type SignInInput,
   type SignUpInput,
+  type UserEmailUpdateInput,
+  type UserPasswordUpdateInput,
   type UserProfileUpdateInput,
   UserRole
 } from "@/types";
@@ -62,7 +64,7 @@ export class AuthService {
       return "/landlord/dashboard";
     }
 
-    return "/user/dashboard";
+    return "/user/bookings";
   }
 
   buildLoginRedirect(nextPath: string) {
@@ -353,6 +355,60 @@ export class AuthService {
     this.syncAuthSnapshot(authenticatedUser);
 
     return authenticatedUser;
+  }
+
+  async updateEmail(input: UserEmailUpdateInput, client?: ServiceClient): Promise<AuthenticatedUser> {
+    const supabase = this.resolveClient(client);
+    const currentUser = await this.requireCurrentUser(supabase);
+    const normalizedEmail = input.email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Email address cannot be blank.");
+    }
+
+    const { data: authUpdate, error: authError } = await supabase.auth.updateUser({
+      email: normalizedEmail
+    });
+
+    if (authError || !authUpdate.user) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to update the account email.", authError);
+    }
+
+    const { data: profileData, error: profileError } = await supabase
+      .from("users")
+      .update({
+        email: normalizedEmail
+      })
+      .eq("id", currentUser.id)
+      .select("*")
+      .single();
+
+    if (profileError) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to synchronize the profile email.", profileError);
+    }
+
+    const authenticatedUser = this.mapAuthenticatedUser(authUpdate.user, profileData);
+    this.syncAuthSnapshot(authenticatedUser);
+
+    return authenticatedUser;
+  }
+
+  async updatePassword(input: UserPasswordUpdateInput, client?: ServiceClient): Promise<void> {
+    const supabase = this.resolveClient(client);
+    await this.requireCurrentUser(supabase);
+    const normalizedPassword = input.password.trim();
+
+    if (normalizedPassword.length < 8) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Password must be at least 8 characters long.");
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: normalizedPassword
+    });
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to update the account password.", error);
+    }
   }
 
   async getSession(client?: ServiceClient): Promise<Session | null> {

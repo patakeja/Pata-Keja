@@ -17,7 +17,7 @@ export function SiteFooter() {
           <Link href="/admin/dashboard" className="hover:text-foreground">
             Admin
           </Link>
-          <Link href="/user/dashboard" className="hover:text-foreground">
+          <Link href="/user/bookings" className="hover:text-foreground">
             User
           </Link>
           <Link href="/landlord/dashboard" className="hover:text-foreground">

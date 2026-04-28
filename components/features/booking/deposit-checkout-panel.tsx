@@ -88,7 +88,7 @@ export function DepositCheckoutPanel({ listingId }: DepositCheckoutPanelProps) {
       }
 
       await paymentService.confirmDepositPayment(reservation.payment.id);
-      router.push("/user/dashboard?payment=deposit-confirmed");
+      router.push("/user/bookings?payment=deposit-confirmed");
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {

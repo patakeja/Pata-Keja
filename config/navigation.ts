@@ -12,9 +12,8 @@ export const publicNavigation: NavigationItem[] = [
 ];
 
 export const userNavigation: NavigationItem[] = [
-  { href: "/user/dashboard", label: "Overview", description: "Profile and account activity" },
   { href: "/user/bookings", label: "Bookings", description: "Reservation activity and history" },
-  { href: "/user/profile", label: "Profile", description: "Identity and preference settings" }
+  { href: "/user/profile", label: "Profile", description: "Account, settings, and saved activity" }
 ];
 
 export const landlordNavigation: NavigationItem[] = [

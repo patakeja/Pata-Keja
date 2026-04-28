@@ -9,6 +9,8 @@ import {
   type AuthenticatedUser,
   type SignInInput,
   type SignUpInput,
+  type UserEmailUpdateInput,
+  type UserPasswordUpdateInput,
   type UserProfileUpdateInput,
   UserRole
 } from "@/types";
@@ -45,6 +47,14 @@ export async function getCurrentUserWithProfile() {
 
 export async function updateProfile(input: UserProfileUpdateInput): Promise<AuthenticatedUser> {
   return authService.updateProfile(input);
+}
+
+export async function updateEmail(input: UserEmailUpdateInput): Promise<AuthenticatedUser> {
+  return authService.updateEmail(input);
+}
+
+export async function updatePassword(input: UserPasswordUpdateInput): Promise<void> {
+  return authService.updatePassword(input);
 }
 
 export async function getSession(): Promise<Session | null> {

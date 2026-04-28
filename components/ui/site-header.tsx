@@ -18,6 +18,7 @@ export function SiteHeader() {
   const dashboardHref = user ? getRoleHomePath(user.role) : "/login";
   const homeHref = user?.role === UserRole.ADMIN ? dashboardHref : "/home";
   const shouldShowPublicBrowse = user?.role !== UserRole.ADMIN;
+  const shouldHideAccountActions = pathname === "/home";
   const dashboardLabel =
     user?.role === UserRole.LANDLORD ? "Landlord Portal" : user?.role === UserRole.ADMIN ? "Admin Portal" : "Dashboard";
 
@@ -57,7 +58,7 @@ export function SiteHeader() {
             </span>
           ) : null}
 
-          {status === "authenticated" && user ? (
+          {!shouldHideAccountActions && status === "authenticated" && user ? (
             <>
               <Link
                 href={dashboardHref}
@@ -71,7 +72,7 @@ export function SiteHeader() {
             </>
           ) : null}
 
-          {status === "unauthenticated" ? (
+          {!shouldHideAccountActions && status === "unauthenticated" ? (
             <>
               <Link href="/login" className={buttonVariants({ variant: "outline", size: "md" })}>
                 Login

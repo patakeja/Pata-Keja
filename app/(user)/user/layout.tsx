@@ -9,8 +9,8 @@ export default function UserLayout({ children }: { children: ReactNode }) {
   return (
     <AuthGuard allowedRoles={[UserRole.TENANT, UserRole.LANDLORD, UserRole.ADMIN]}>
       <DashboardShell
-        title="User Dashboard"
-        subtitle="Reserved for authenticated tenants and future profile-aware workflows."
+        title="My Account"
+        subtitle="Your bookings, saved activity, and personal settings in one place."
         navigation={userNavigation}
       >
         {children}

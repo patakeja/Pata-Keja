@@ -19,8 +19,10 @@ export function HouseTypeChips({ selectedHouseType }: HouseTypeChipsProps) {
             key={houseType}
             href={`/houses?houseType=${houseType}`}
             className={cn(
-              "rounded-md border px-2 py-1 text-[11px] font-medium transition",
-              isActive ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white text-foreground hover:border-primary/40"
+              "min-w-[132px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm transition",
+              isActive
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-white text-foreground hover:border-primary/40 hover:bg-primary/5"
             )}
           >
             {houseTypeLabels[houseType]}

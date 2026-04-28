@@ -14,7 +14,7 @@ function getRoleHomePath(role: AppRole) {
     return "/landlord/dashboard";
   }
 
-  return "/user/dashboard";
+  return "/user/bookings";
 }
 
 function getAuthenticatedRole(request: NextRequest): AppRole | null {

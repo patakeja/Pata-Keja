@@ -57,3 +57,11 @@ export type UserProfileUpdateInput = {
   fullName?: string;
   phone?: string | null;
 };
+
+export type UserEmailUpdateInput = {
+  email: string;
+};
+
+export type UserPasswordUpdateInput = {
+  password: string;
+};

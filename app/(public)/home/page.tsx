@@ -1,10 +1,11 @@
 import { HouseTypeChips } from "@/components/features/listings/house-type-chips";
-import { ListingGrid } from "@/components/features/listings/listing-grid";
 import { ListingRail } from "@/components/features/listings/listing-rail";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageShell } from "@/components/ui/page-shell";
 import { listingService } from "@/lib/listingService";
 import { ListingType } from "@/types";
+import Link from "next/link";
 
 export default async function HomePage() {
   const listings = await listingService.getPublicListings({ limit: 12 });
@@ -46,13 +47,19 @@ export default async function HomePage() {
         <HouseTypeChips />
       </section>
 
-      <section className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-foreground">All Houses</h2>
-          <p className="text-[11px] text-muted-foreground">1 column mobile, 2 tablet, 3 desktop</p>
-        </div>
-        <ListingGrid listings={listings} />
-      </section>
+      <Card>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold text-foreground">All Houses</h2>
+            <p className="text-xs text-muted-foreground">
+              Open the full houses page to browse the complete catalog with filters and search.
+            </p>
+          </div>
+          <Link href="/houses" className={buttonVariants({ size: "lg" })}>
+            Browse all houses
+          </Link>
+        </CardContent>
+      </Card>
     </PageShell>
   );
 }
