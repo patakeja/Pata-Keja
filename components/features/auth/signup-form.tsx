@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getRoleHomePath, getSession, signInWithGoogle, signUp } from "@/lib/auth";
+import { ToastMessage } from "@/components/ui/toast-message";
+import { getSession, resolveSafeAppPath, signInWithGoogle, signUp } from "@/lib/auth";
 import { useAuthStore } from "@/store";
 
 import { AuthFormShell } from "./auth-form-shell";
@@ -21,6 +22,7 @@ function getErrorMessage(error: unknown) {
 
 export function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { status, user, refreshAuthState } = useAuthStore();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -30,12 +32,14 @@ export function SignupForm() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const redirectToParam = searchParams.get("redirectTo") ?? searchParams.get("next");
+  const safeRedirectTo = resolveSafeAppPath(redirectToParam, "/");
 
   useEffect(() => {
     if (status === "authenticated" && user) {
-      router.replace(getRoleHomePath(user.role));
+      router.replace(user.role === "admin" ? "/admin/verify" : safeRedirectTo);
     }
-  }, [router, status, user]);
+  }, [router, safeRedirectTo, status, user]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,22 +48,22 @@ export function SignupForm() {
     setIsSubmitting(true);
 
     try {
-      await signUp({
+      const authenticatedUser = await signUp({
         email,
         password,
         fullName,
         phone: phone.trim() || null
-      });
+      }, safeRedirectTo);
 
       await refreshAuthState();
       const session = await getSession();
 
       if (session?.user) {
-        router.replace("/user/onboarding");
+        router.push(authenticatedUser.role === "admin" ? "/admin/verify" : safeRedirectTo);
         return;
       }
 
-      setSuccessMessage("Account created. Check your email to confirm your address and finish onboarding.");
+      setSuccessMessage("Account created. Check your email to continue to the next step.");
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
@@ -73,7 +77,7 @@ export function SignupForm() {
     setIsGoogleLoading(true);
 
     try {
-      await signInWithGoogle("/user/onboarding");
+      await signInWithGoogle(safeRedirectTo);
     } catch (googleError) {
       setError(getErrorMessage(googleError));
       setIsGoogleLoading(false);
@@ -84,8 +88,10 @@ export function SignupForm() {
     <AuthFormShell
       eyebrow="Sign Up"
       title="Create your account"
-      description="Email sign-up and Google OAuth both flow through Supabase Auth, then into your profile onboarding."
+      description="Email sign-up and Google OAuth both flow through Supabase Auth and then return you to where you meant to go."
     >
+      {error ? <ToastMessage message={error} /> : null}
+      {successMessage ? <ToastMessage message={successMessage} tone="success" /> : null}
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="space-y-2">
           <label htmlFor="fullName" className="text-sm font-medium text-foreground">
@@ -145,8 +151,6 @@ export function SignupForm() {
             required
           />
         </div>
-        {error ? <p className="text-xs text-rose-700">{error}</p> : null}
-        {successMessage ? <p className="text-xs text-emerald-700">{successMessage}</p> : null}
         <div className="space-y-2">
           <Button className="w-full" type="submit" disabled={isSubmitting || isGoogleLoading}>
             {isSubmitting ? "Creating account..." : "Create Account"}

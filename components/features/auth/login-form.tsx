@@ -7,7 +7,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getRoleHomePath, resolveSafeAppPath, signIn, signInWithGoogle } from "@/lib/auth";
+import { ToastMessage } from "@/components/ui/toast-message";
+import { resolveSafeAppPath, signIn, signInWithGoogle } from "@/lib/auth";
 import { useAuthStore } from "@/store";
 import { RestrictedAction } from "@/types";
 
@@ -47,20 +48,17 @@ export function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const nextParam = searchParams.get("next");
+  const redirectToParam = searchParams.get("redirectTo") ?? searchParams.get("next");
   const intent = searchParams.get("intent");
   const intentCopy = getIntentCopy(intent);
   const intentLabel = intent ? intent.replaceAll("_", " ") : null;
-  const safeNextPath = resolveSafeAppPath(
-    nextParam,
-    user ? getRoleHomePath(user.role) : "/user/dashboard"
-  );
+  const safeRedirectTo = resolveSafeAppPath(redirectToParam, "/");
 
   useEffect(() => {
     if (status === "authenticated" && user) {
-      router.replace(resolveSafeAppPath(nextParam, getRoleHomePath(user.role)));
+      router.replace(user.role === "admin" ? "/admin/verify" : safeRedirectTo);
     }
-  }, [nextParam, router, status, user]);
+  }, [router, safeRedirectTo, status, user]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,7 +72,7 @@ export function LoginForm() {
       });
 
       await refreshAuthState();
-      router.replace(resolveSafeAppPath(nextParam, getRoleHomePath(authenticatedUser.role)));
+      router.push(authenticatedUser.role === "admin" ? "/admin/verify" : safeRedirectTo);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
@@ -87,7 +85,7 @@ export function LoginForm() {
     setIsGoogleLoading(true);
 
     try {
-      await signInWithGoogle(safeNextPath);
+      await signInWithGoogle(safeRedirectTo);
     } catch (googleError) {
       setError(getErrorMessage(googleError));
       setIsGoogleLoading(false);
@@ -100,6 +98,7 @@ export function LoginForm() {
       title="Welcome back"
       description="Use email or Google sign-in to continue into your protected tenant, landlord, or admin workspace."
     >
+      {error ? <ToastMessage message={error} /> : null}
       {intentCopy && intentLabel ? <Badge>{intentLabel}</Badge> : null}
       {intentCopy ? <p className="text-xs text-muted-foreground">{intentCopy}</p> : null}
 
@@ -134,10 +133,9 @@ export function LoginForm() {
             required
           />
         </div>
-        {error ? <p className="text-xs text-rose-700">{error}</p> : null}
         <div className="space-y-2">
           <Button className="w-full" type="submit" disabled={isSubmitting || isGoogleLoading}>
-            {isSubmitting ? "Signing in..." : "Sign In"}
+            {isSubmitting ? "Logging in..." : "Sign In"}
           </Button>
           <Button
             className="w-full"

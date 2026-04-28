@@ -36,7 +36,7 @@ function getAuthenticatedRole(request: NextRequest): AppRole | null {
 function createLoginRedirect(request: NextRequest) {
   const loginUrl = new URL("/login", request.url);
   const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-  loginUrl.searchParams.set("next", nextPath);
+  loginUrl.searchParams.set("redirectTo", nextPath);
 
   return NextResponse.redirect(loginUrl);
 }
@@ -47,7 +47,7 @@ export function middleware(request: NextRequest) {
 
   if (pathname === "/login" || pathname === "/signup") {
     if (role) {
-      return NextResponse.redirect(new URL(getRoleHomePath(role), request.url));
+      return NextResponse.redirect(new URL(role === "admin" ? "/admin/verify" : getRoleHomePath(role), request.url));
     }
 
     return NextResponse.next();

@@ -5,23 +5,19 @@ import { houseTypeLabels, listingTypeLabels } from "@/config/listingPresentation
 import type { BookingPolicy, ListingDetail as ListingDetailType } from "@/types";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+
+import { ReserveListingButton } from "./reserve-listing-button";
 
 type ListingDetailProps = {
   listing: ListingDetailType;
-  reserveHref: string;
   chatHref: string;
   locationHref: string;
   bookingPolicy: BookingPolicy;
 };
 
-export function ListingDetail({ listing, reserveHref, chatHref, locationHref, bookingPolicy }: ListingDetailProps) {
+export function ListingDetail({ listing, chatHref, locationHref, bookingPolicy }: ListingDetailProps) {
   const galleryItems = listing.imageUrls?.length ? listing.imageUrls : [];
-  const reserveButtonClassName = buttonVariants({
-    size: "lg",
-    className: listing.canReserve ? "w-full" : "pointer-events-none w-full bg-muted text-muted-foreground"
-  });
 
   return (
     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -152,13 +148,7 @@ export function ListingDetail({ listing, reserveHref, chatHref, locationHref, bo
                 <span>{bookingPolicy.reservationWindowHours}h hold</span>
               </div>
             </div>
-            {listing.canReserve ? (
-              <Link href={reserveHref} className={reserveButtonClassName}>
-                Reserve this house
-              </Link>
-            ) : (
-              <span className={reserveButtonClassName}>Unavailable right now</span>
-            )}
+            <ReserveListingButton listingId={listing.id} canReserve={listing.canReserve} />
             <p className="text-[11px] text-muted-foreground">
               Queue mode: {bookingPolicy.queueStrategy.replaceAll("_", " ")}.
             </p>

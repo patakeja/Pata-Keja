@@ -28,7 +28,6 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
       <ListingDetail
         listing={listing}
         bookingPolicy={bookingService.getPolicy()}
-        reserveHref={`/deposit/${id}`}
         chatHref={buildRestrictedActionRedirect(RestrictedAction.CHAT, nextPath)}
         locationHref={buildRestrictedActionRedirect(RestrictedAction.VIEW_EXACT_LOCATION, nextPath)}
       />

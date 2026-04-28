@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { BottomNav } from "@/components/ui/bottom-nav";
 import { APP_NAME, APP_TAGLINE } from "@/config/app";
 import { AuthStoreProvider } from "@/store";
 
@@ -28,8 +29,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" className={`${manrope.variable} ${fraunces.variable}`}>
-      <body className="min-h-screen font-[family:var(--font-sans)]">
-        <AuthStoreProvider>{children}</AuthStoreProvider>
+      <body className="min-h-screen pb-16 font-[family:var(--font-sans)] md:pb-0">
+        <AuthStoreProvider>
+          {children}
+          <BottomNav />
+        </AuthStoreProvider>
       </body>
     </html>
   );

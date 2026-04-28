@@ -67,7 +67,7 @@ export class AuthService {
 
   buildLoginRedirect(nextPath: string) {
     const params = new URLSearchParams({
-      next: this.resolveSafeAppPath(nextPath, "/")
+      redirectTo: this.resolveSafeAppPath(nextPath, "/")
     });
 
     return `/login?${params.toString()}`;
@@ -89,7 +89,7 @@ export class AuthService {
 
   buildRestrictedActionRedirect(action: RestrictedAction, nextPath: string) {
     const params = new URLSearchParams({
-      next: this.resolveSafeAppPath(nextPath, "/"),
+      redirectTo: this.resolveSafeAppPath(nextPath, "/"),
       intent: action
     });
 
@@ -100,7 +100,8 @@ export class AuthService {
     email: string,
     password: string,
     profile: Omit<SignUpInput, "email" | "password"> = {},
-    client?: ServiceClient
+    client?: ServiceClient,
+    redirectToPath?: string
   ): Promise<AuthenticatedUser> {
     const supabase = this.resolveClient(client);
     const role = this.resolveSignupRole(profile.role);
@@ -112,7 +113,7 @@ export class AuthService {
       email: normalizedEmail,
       password,
       options: {
-        emailRedirectTo: this.buildAuthCallbackUrl("/user/onboarding"),
+        emailRedirectTo: this.buildAuthCallbackUrl(redirectToPath, "/"),
         data: {
           full_name: fullName,
           phone,
@@ -174,12 +175,12 @@ export class AuthService {
     return authenticatedUser;
   }
 
-  async signInWithGoogle(nextPath = "/user/dashboard", client?: ServiceClient): Promise<void> {
+  async signInWithGoogle(nextPath = "/", client?: ServiceClient): Promise<void> {
     const supabase = this.resolveClient(client);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: this.buildAuthCallbackUrl(nextPath, "/user/dashboard")
+        redirectTo: this.buildAuthCallbackUrl(nextPath, "/")
       }
     });
 
@@ -217,16 +218,23 @@ export class AuthService {
     const user = this.mapAuthenticatedUser(session.user, ensuredProfile.profile);
     this.syncAuthSnapshot(user);
     const requestedNextPath = this.resolveSafeAppPath(
-      url.searchParams.get("next"),
-      this.getRoleHomePath(user.role)
+      url.searchParams.get("redirectTo") ?? url.searchParams.get("next"),
+      "/"
     );
+    const isAdminMagicLinkFlow = url.searchParams.get("adminVerify") === "1";
+
+    if (user.role === UserRole.ADMIN) {
+      return {
+        user,
+        isNewUser: ensuredProfile.isNewUser,
+        nextPath: isAdminMagicLinkFlow ? "/admin" : "/admin/verify"
+      };
+    }
 
     return {
       user,
       isNewUser: ensuredProfile.isNewUser,
-      nextPath: ensuredProfile.isNewUser
-        ? "/user/onboarding"
-        : requestedNextPath || this.getRoleHomePath(user.role)
+      nextPath: requestedNextPath || "/"
     };
   }
 
@@ -435,7 +443,29 @@ export class AuthService {
     return this.signUp(payload.email, payload.password, payload, client);
   }
 
-  resolveSafeAppPath(path: string | null | undefined, fallbackPath = "/user/dashboard") {
+  async sendAdminMagicLink(email: string, client?: ServiceClient): Promise<void> {
+    const supabase = this.resolveClient(client);
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "An email address is required.");
+    }
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        emailRedirectTo: this.buildAuthCallbackUrl("/admin", "/admin", {
+          adminVerify: "1"
+        })
+      }
+    });
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to send the admin magic link.", error);
+    }
+  }
+
+  resolveSafeAppPath(path: string | null | undefined, fallbackPath = "/") {
     if (typeof path !== "string") {
       return fallbackPath;
     }
@@ -561,7 +591,11 @@ export class AuthService {
     return authUser.phone ?? null;
   }
 
-  private buildAuthCallbackUrl(nextPath?: string, fallbackPath = "/user/dashboard") {
+  private buildAuthCallbackUrl(
+    nextPath?: string,
+    fallbackPath = "/",
+    extraParams?: Record<string, string>
+  ) {
     if (typeof window === "undefined") {
       return undefined;
     }
@@ -570,7 +604,13 @@ export class AuthService {
     const safeNextPath = typeof nextPath === "string" ? this.resolveSafeAppPath(nextPath, fallbackPath) : undefined;
 
     if (safeNextPath) {
-      callbackUrl.searchParams.set("next", safeNextPath);
+      callbackUrl.searchParams.set("redirectTo", safeNextPath);
+    }
+
+    if (extraParams) {
+      Object.entries(extraParams).forEach(([key, value]) => {
+        callbackUrl.searchParams.set(key, value);
+      });
     }
 
     return callbackUrl.toString();

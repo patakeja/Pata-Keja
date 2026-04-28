@@ -15,8 +15,8 @@ import {
 
 const authService = new AuthService(getSupabaseClient);
 
-export async function signUp(payload: SignUpInput) {
-  return authService.signUp(payload.email, payload.password, payload);
+export async function signUp(payload: SignUpInput, redirectTo?: string) {
+  return authService.signUp(payload.email, payload.password, payload, undefined, redirectTo);
 }
 
 export async function signIn(credentials: SignInInput) {
@@ -25,6 +25,10 @@ export async function signIn(credentials: SignInInput) {
 
 export async function signInWithGoogle(nextPath?: string) {
   return authService.signInWithGoogle(nextPath);
+}
+
+export async function sendAdminMagicLink(email: string) {
+  return authService.sendAdminMagicLink(email);
 }
 
 export async function handleAuthCallback(callbackUrl?: string): Promise<AuthCallbackResult> {
