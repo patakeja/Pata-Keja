@@ -292,7 +292,12 @@ export class ListingService {
   }
 
   private listingSelect() {
-    return "*,county:counties(id,name),town:towns(id,name),area:areas(id,name)";
+    return [
+      "*",
+      "county:counties!listings_county_id_fkey(id,name)",
+      "town:towns!listings_town_id_fkey(id,name)",
+      "area:areas!listings_area_id_fkey(id,name)"
+    ].join(",");
   }
 
   private buildCreateListingPayload(data: CreateListingInput, landlordId: string) {

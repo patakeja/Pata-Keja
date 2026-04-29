@@ -738,9 +738,9 @@ export class PaymentService {
           listing_type,
           landlord_id,
           is_active,
-          county:counties(name),
-          town:towns(name),
-          area:areas(name)
+          county:counties!listings_county_id_fkey(name),
+          town:towns!listings_town_id_fkey(name),
+          area:areas!listings_area_id_fkey(name)
         `
       )
       .eq("id", listingId)
@@ -794,9 +794,9 @@ export class PaymentService {
             listing_type,
             landlord_id,
             is_active,
-            county:counties(name),
-            town:towns(name),
-            area:areas(name)
+            county:counties!listings_county_id_fkey(name),
+            town:towns!listings_town_id_fkey(name),
+            area:areas!listings_area_id_fkey(name)
           )
         `
       )
@@ -831,9 +831,9 @@ export class PaymentService {
               listing_type,
               landlord_id,
               is_active,
-              county:counties(name),
-              town:towns(name),
-              area:areas(name)
+              county:counties!listings_county_id_fkey(name),
+              town:towns!listings_town_id_fkey(name),
+              area:areas!listings_area_id_fkey(name)
             )
           )
         `
@@ -871,9 +871,9 @@ export class PaymentService {
             listing_type,
             landlord_id,
             is_active,
-            county:counties(name),
-            town:towns(name),
-            area:areas(name)
+            county:counties!listings_county_id_fkey(name),
+            town:towns!listings_town_id_fkey(name),
+            area:areas!listings_area_id_fkey(name)
           )
         )
       `

@@ -750,9 +750,9 @@ export class ChatService {
           longitude,
           deposit_amount,
           available_from,
-          area:areas(name),
-          town:towns(name),
-          county:counties(name)
+          area:areas!listings_area_id_fkey(name),
+          town:towns!listings_town_id_fkey(name),
+          county:counties!listings_county_id_fkey(name)
         )
       ),
       tenant:users!conversations_tenant_id_fkey(

@@ -193,9 +193,9 @@ export class BookingService {
           ),
           listing:listings(
             *,
-            county:counties(name),
-            town:towns(name),
-            area:areas(name),
+            county:counties!listings_county_id_fkey(name),
+            town:towns!listings_town_id_fkey(name),
+            area:areas!listings_area_id_fkey(name),
             landlord:users!listings_landlord_id_fkey(
               id,
               full_name,
@@ -260,9 +260,9 @@ export class BookingService {
             total_units,
             is_active,
             is_verified,
-            county:counties(name),
-            town:towns(name),
-            area:areas(name)
+            county:counties!listings_county_id_fkey(name),
+            town:towns!listings_town_id_fkey(name),
+            area:areas!listings_area_id_fkey(name)
           )
         `
       )
