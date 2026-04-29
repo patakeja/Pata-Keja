@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { createSupabaseClient, getSupabaseClient } from "@/lib/supabaseClient";
 import { AuthService } from "@/services/auth/auth.service";
 import { DarajaService } from "@/services/payments/daraja.service";
 import { PaymentService } from "@/services/payments/payment.service";
@@ -10,7 +10,6 @@ import { PaymentMethod, PaymentStatus, ServiceErrorCode, type PaymentRecord } fr
 export const runtime = "nodejs";
 
 const authService = new AuthService(getSupabaseClient);
-const paymentService = new PaymentService(getSupabaseClient);
 const darajaService = new DarajaService();
 
 type StartStkPayload = {
@@ -19,11 +18,21 @@ type StartStkPayload = {
   phone?: string;
 };
 
-async function requireAuthorizedUser(request: NextRequest) {
+function getAccessTokenFromRequest(request: NextRequest) {
   const authorizationHeader = request.headers.get("authorization") ?? "";
-  const accessToken = authorizationHeader.startsWith("Bearer ")
+  return authorizationHeader.startsWith("Bearer ")
     ? authorizationHeader.slice("Bearer ".length).trim()
     : "";
+}
+
+function createAuthorizedPaymentService(accessToken: string) {
+  const authorizedClient = createSupabaseClient({ accessToken });
+
+  return new PaymentService(() => authorizedClient);
+}
+
+async function requireAuthorizedUser(request: NextRequest) {
+  const accessToken = getAccessTokenFromRequest(request);
 
   if (!accessToken) {
     throw new ServiceError(ServiceErrorCode.UNAUTHENTICATED, "Missing bearer token.");
@@ -63,9 +72,12 @@ function createErrorResponse(error: unknown) {
 
 export async function POST(request: NextRequest) {
   let pendingPaymentId: string | null = null;
+  let paymentService: PaymentService | null = null;
 
   try {
+    const accessToken = getAccessTokenFromRequest(request);
     const actor = await requireAuthorizedUser(request);
+    paymentService = createAuthorizedPaymentService(accessToken);
     const body = (await request.json()) as StartStkPayload;
     const phone = body.phone?.trim() ?? "";
 
@@ -122,7 +134,7 @@ export async function POST(request: NextRequest) {
       customerMessage: stkResponse.CustomerMessage
     });
   } catch (error) {
-    if (pendingPaymentId) {
+    if (pendingPaymentId && paymentService) {
       await paymentService
         .markPaymentFailed(
           pendingPaymentId,
@@ -137,7 +149,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const accessToken = getAccessTokenFromRequest(request);
     const actor = await requireAuthorizedUser(request);
+    const paymentService = createAuthorizedPaymentService(accessToken);
     const paymentId = request.nextUrl.searchParams.get("paymentId");
 
     if (!paymentId) {

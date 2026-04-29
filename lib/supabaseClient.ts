@@ -4,17 +4,28 @@ import { getSupabaseEnvOrThrow, isSupabaseConfigured } from "@/config/env";
 import type { Database } from "@/types";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
+type SupabaseClientOptions = {
+  accessToken?: string;
+};
 
 let browserClient: AppSupabaseClient | null = null;
 
-export function createSupabaseClient() {
+export function createSupabaseClient(options?: SupabaseClientOptions) {
   const { supabaseUrl, supabaseAnonKey } = getSupabaseEnvOrThrow();
   const isBrowser = typeof window !== "undefined";
+  const normalizedAccessToken = options?.accessToken?.trim();
 
   return createClient<Database>(supabaseUrl, supabaseAnonKey, {
     db: {
       schema: "public"
     },
+    global: normalizedAccessToken
+      ? {
+          headers: {
+            Authorization: `Bearer ${normalizedAccessToken}`
+          }
+        }
+      : undefined,
     auth: {
       autoRefreshToken: isBrowser,
       persistSession: isBrowser,
