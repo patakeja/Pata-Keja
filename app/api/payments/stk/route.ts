@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createSupabaseClient, getSupabaseClient } from "@/lib/supabaseClient";
+import { getSupabaseClient } from "@/lib/supabaseClient";
+import { getSupabaseServiceRoleClient } from "@/lib/supabaseServerClient";
 import { AuthService } from "@/services/auth/auth.service";
 import { DarajaService } from "@/services/payments/daraja.service";
 import { PaymentService } from "@/services/payments/payment.service";
@@ -11,6 +12,7 @@ export const runtime = "nodejs";
 
 const authService = new AuthService(getSupabaseClient);
 const darajaService = new DarajaService();
+const paymentService = new PaymentService(getSupabaseServiceRoleClient);
 
 type StartStkPayload = {
   listingId?: string;
@@ -23,12 +25,6 @@ function getAccessTokenFromRequest(request: NextRequest) {
   return authorizationHeader.startsWith("Bearer ")
     ? authorizationHeader.slice("Bearer ".length).trim()
     : "";
-}
-
-function createAuthorizedPaymentService(accessToken: string) {
-  const authorizedClient = createSupabaseClient({ accessToken });
-
-  return new PaymentService(() => authorizedClient);
 }
 
 async function requireAuthorizedUser(request: NextRequest) {
@@ -72,12 +68,9 @@ function createErrorResponse(error: unknown) {
 
 export async function POST(request: NextRequest) {
   let pendingPaymentId: string | null = null;
-  let paymentService: PaymentService | null = null;
 
   try {
-    const accessToken = getAccessTokenFromRequest(request);
     const actor = await requireAuthorizedUser(request);
-    paymentService = createAuthorizedPaymentService(accessToken);
     const body = (await request.json()) as StartStkPayload;
     const phone = body.phone?.trim() ?? "";
 
@@ -134,7 +127,7 @@ export async function POST(request: NextRequest) {
       customerMessage: stkResponse.CustomerMessage
     });
   } catch (error) {
-    if (pendingPaymentId && paymentService) {
+    if (pendingPaymentId) {
       await paymentService
         .markPaymentFailed(
           pendingPaymentId,
@@ -149,9 +142,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const accessToken = getAccessTokenFromRequest(request);
     const actor = await requireAuthorizedUser(request);
-    const paymentService = createAuthorizedPaymentService(accessToken);
     const paymentId = request.nextUrl.searchParams.get("paymentId");
 
     if (!paymentId) {

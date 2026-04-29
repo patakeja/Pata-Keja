@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { getSupabaseServiceRoleClient } from "@/lib/supabaseServerClient";
 import { PaymentService } from "@/services/payments/payment.service";
 import { isServiceError } from "@/services/shared/service-error";
 
 export const runtime = "nodejs";
 
-const paymentService = new PaymentService(getSupabaseClient);
+const paymentService = new PaymentService(getSupabaseServiceRoleClient);
 
 export async function POST(request: NextRequest) {
   try {
