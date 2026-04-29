@@ -316,6 +316,7 @@ export type Database = {
           listing_id: string;
           status: PersistedBookingStatus;
           deposit_amount: number;
+          deposit_paid: boolean;
           expires_at: string | null;
           created_at: string;
           updated_at: string;
@@ -326,6 +327,7 @@ export type Database = {
           listing_id: string;
           status?: PersistedBookingStatus;
           deposit_amount?: number;
+          deposit_paid?: boolean;
           expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -336,6 +338,7 @@ export type Database = {
           listing_id?: string;
           status?: PersistedBookingStatus;
           deposit_amount?: number;
+          deposit_paid?: boolean;
           expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -368,6 +371,13 @@ export type Database = {
           status: PaymentStatus;
           commission_amount: number;
           refund_amount: number;
+          mpesa_receipt: string | null;
+          phone: string | null;
+          checkout_request_id: string | null;
+          merchant_request_id: string | null;
+          provider_result_code: number | null;
+          provider_result_desc: string | null;
+          provider_response: Json;
           created_at: string;
           updated_at: string;
         };
@@ -381,6 +391,13 @@ export type Database = {
           status?: PaymentStatus;
           commission_amount?: number;
           refund_amount?: number;
+          mpesa_receipt?: string | null;
+          phone?: string | null;
+          checkout_request_id?: string | null;
+          merchant_request_id?: string | null;
+          provider_result_code?: number | null;
+          provider_result_desc?: string | null;
+          provider_response?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -394,6 +411,13 @@ export type Database = {
           status?: PaymentStatus;
           commission_amount?: number;
           refund_amount?: number;
+          mpesa_receipt?: string | null;
+          phone?: string | null;
+          checkout_request_id?: string | null;
+          merchant_request_id?: string | null;
+          provider_result_code?: number | null;
+          provider_result_desc?: string | null;
+          provider_response?: Json;
           created_at?: string;
           updated_at?: string;
         };

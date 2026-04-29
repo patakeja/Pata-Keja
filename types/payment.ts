@@ -10,6 +10,8 @@ export enum PaymentMethod {
 export enum PaymentStatus {
   PENDING = "pending",
   CONFIRMED = "confirmed",
+  COMPLETED = "completed",
+  FAILED = "failed",
   PARTIALLY_REFUNDED = "partially_refunded"
 }
 
@@ -30,6 +32,12 @@ export type PaymentRecord = {
   status: PaymentStatus;
   commissionAmount: number;
   refundAmount: number;
+  phone: string | null;
+  mpesaReceipt: string | null;
+  checkoutRequestId: string | null;
+  merchantRequestId: string | null;
+  providerResultCode: number | null;
+  providerResultDesc: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -50,6 +58,31 @@ export type MpesaInitiationResult = {
   merchantRequestId: string;
   amount: number;
   phone: string;
+};
+
+export type DarajaStkPushInput = {
+  phone: string;
+  amount: number;
+  accountReference: string;
+  transactionDesc: string;
+};
+
+export type DarajaStkPushResponse = {
+  MerchantRequestID: string;
+  CheckoutRequestID: string;
+  ResponseCode: string;
+  ResponseDescription: string;
+  CustomerMessage: string;
+};
+
+export type PaymentStatusPollResult = {
+  payment: PaymentRecord;
+  bookingId: string;
+  depositPaid: boolean;
+};
+
+export type StkPaymentStartResult = PaymentStatusPollResult & {
+  customerMessage: string;
 };
 
 export type DepositCheckout = {

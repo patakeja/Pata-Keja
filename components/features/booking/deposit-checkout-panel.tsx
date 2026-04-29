@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { PrebookPanel } from "@/components/features/booking/prebook-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { buildRestrictedActionRedirect, getCurrentUser } from "@/lib/auth";
-import { paymentService } from "@/lib/paymentService";
-import { RestrictedAction } from "@/types";
+import { getStkPaymentStatus, paymentService, startStkPayment } from "@/lib/paymentService";
+import { PaymentStatus, RestrictedAction } from "@/types";
 import type { DepositCheckout } from "@/types";
 
 type DepositCheckoutPanelProps = {
@@ -29,6 +30,10 @@ export function DepositCheckoutPanel({ listingId }: DepositCheckoutPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -40,6 +45,10 @@ export function DepositCheckoutPanel({ listingId }: DepositCheckoutPanelProps) {
         if (!user) {
           router.replace(buildRestrictedActionRedirect(RestrictedAction.BOOK, `/deposit/${listingId}`));
           return;
+        }
+
+        if (isMounted) {
+          setPhone(user.phone ?? "");
         }
 
         const nextCheckout = await paymentService.getDepositCheckout(listingId);
@@ -64,9 +73,58 @@ export function DepositCheckoutPanel({ listingId }: DepositCheckoutPanelProps) {
     };
   }, [listingId, router]);
 
+  useEffect(() => {
+    if (!pendingPaymentId || !isPolling) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    const poll = async () => {
+      try {
+        const statusResult = await getStkPaymentStatus(pendingPaymentId);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (
+          statusResult.payment.status === PaymentStatus.COMPLETED ||
+          statusResult.payment.status === PaymentStatus.CONFIRMED
+        ) {
+          setIsPolling(false);
+          router.push("/bookings?payment=deposit-confirmed");
+          return;
+        }
+
+        if (statusResult.payment.status === PaymentStatus.FAILED) {
+          setIsPolling(false);
+          setPendingPaymentId(null);
+          setError(statusResult.payment.providerResultDesc ?? "The M-Pesa payment failed or was cancelled.");
+        }
+      } catch (pollError) {
+        if (isMounted) {
+          setError(getErrorMessage(pollError));
+          setIsPolling(false);
+        }
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void poll();
+    }, 5000);
+
+    void poll();
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [isPolling, pendingPaymentId, router]);
+
   async function handlePayAndReserve() {
     setIsSubmitting(true);
     setError(null);
+    setStatusMessage(null);
 
     try {
       const user = await getCurrentUser();
@@ -76,19 +134,27 @@ export function DepositCheckoutPanel({ listingId }: DepositCheckoutPanelProps) {
         return;
       }
 
-      if (!user.phone) {
-        throw new Error("Add a phone number to your profile before starting an M-Pesa payment.");
+      if (!phone.trim()) {
+        throw new Error("Enter the Safaricom number that should receive the STK push.");
       }
 
-      const reservation = await paymentService.createDepositPayment(listingId, user.id);
-      const mpesaResponse = await paymentService.initiateMpesaPayment(reservation.payment.amount, user.phone);
+      const paymentResponse = await startStkPayment({
+        listingId,
+        phone
+      });
 
-      if (!mpesaResponse.success) {
-        throw new Error("The mock M-Pesa flow did not return a success response.");
+      setPendingPaymentId(paymentResponse.payment.id);
+      setStatusMessage(paymentResponse.customerMessage || "Waiting for the M-Pesa payment prompt...");
+
+      if (
+        paymentResponse.payment.status === PaymentStatus.COMPLETED ||
+        paymentResponse.payment.status === PaymentStatus.CONFIRMED
+      ) {
+        router.push("/bookings?payment=deposit-confirmed");
+        return;
       }
 
-      await paymentService.confirmDepositPayment(reservation.payment.id);
-      router.push("/bookings?payment=deposit-confirmed");
+      setIsPolling(true);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
@@ -129,9 +195,25 @@ export function DepositCheckoutPanel({ listingId }: DepositCheckoutPanelProps) {
             "If the booking expires before rent is completed, the deposit follows the configured refund policy."
         }}
         action={
-          <Button size="lg" className="w-full" onClick={handlePayAndReserve} disabled={isSubmitting}>
-            {isSubmitting ? "Processing..." : "Pay & Reserve"}
-          </Button>
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <label htmlFor="deposit-phone" className="text-[11px] font-medium text-foreground">
+                M-Pesa phone number
+              </label>
+              <Input
+                id="deposit-phone"
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="254708374149"
+                disabled={isSubmitting || isPolling}
+              />
+            </div>
+            <Button size="lg" className="w-full" onClick={handlePayAndReserve} disabled={isSubmitting || isPolling}>
+              {isSubmitting ? "Sending STK..." : isPolling ? "Waiting for payment..." : "Pay & Reserve"}
+            </Button>
+            {statusMessage ? <p className="text-[11px] text-muted-foreground">{statusMessage}</p> : null}
+          </div>
         }
       />
       {error ? (

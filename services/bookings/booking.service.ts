@@ -150,6 +150,7 @@ export class BookingService {
         listing_id: listingId,
         status: BookingStatus.ACTIVE,
         deposit_amount: this.toNumber(listing.deposit_amount),
+        deposit_paid: false,
         expires_at: expiresAt
       })
       .select("*")
@@ -518,6 +519,7 @@ export class BookingService {
       listingId: row.listing_id,
       status: row.status,
       depositAmount: this.toNumber(row.deposit_amount),
+      depositPaid: row.deposit_paid,
       expiresAt: row.expires_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -624,7 +626,9 @@ export class BookingService {
     const remainingRentAmount = Math.max(0, this.toNumber(listing.price) - this.toNumber(listing.deposit_amount));
     const depositPaidAmount =
       depositPayment &&
-      [PaymentStatus.CONFIRMED, PaymentStatus.PARTIALLY_REFUNDED].includes(depositPayment.status)
+      [PaymentStatus.CONFIRMED, PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED].includes(
+        depositPayment.status
+      )
         ? this.toNumber(depositPayment.amount)
         : 0;
 
@@ -638,9 +642,13 @@ export class BookingService {
       rentPaymentStatus: rentPayment?.status ?? null,
       canPayRent:
         booking.status === BookingStatus.ACTIVE &&
-        depositPayment?.status === PaymentStatus.CONFIRMED &&
+        Boolean(
+          depositPayment &&
+            (depositPayment.status === PaymentStatus.CONFIRMED || depositPayment.status === PaymentStatus.COMPLETED)
+        ) &&
         remainingRentAmount > 0 &&
         rentPayment?.status !== PaymentStatus.CONFIRMED &&
+        rentPayment?.status !== PaymentStatus.COMPLETED &&
         rentPayment?.status !== PaymentStatus.PENDING
     };
   }

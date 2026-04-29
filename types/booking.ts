@@ -36,6 +36,7 @@ export type BookingRecord = {
   listingId: string;
   status: BookingStatus;
   depositAmount: number;
+  depositPaid: boolean;
   expiresAt: string | null;
   createdAt: string;
   updatedAt: string;

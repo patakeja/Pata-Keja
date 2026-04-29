@@ -7,10 +7,11 @@ import { useRouter } from "next/navigation";
 import { PaymentStatusBadge } from "@/components/features/booking/payment-status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { buildRestrictedActionRedirect, getCurrentUser } from "@/lib/auth";
-import { paymentService } from "@/lib/paymentService";
+import { getStkPaymentStatus, paymentService, startStkPayment } from "@/lib/paymentService";
 import { cn } from "@/lib/utils";
-import { PaymentMethod, RestrictedAction } from "@/types";
+import { PaymentStatus, RestrictedAction } from "@/types";
 import type { RentCheckout } from "@/types";
 
 type RentPaymentPanelProps = {
@@ -39,16 +40,22 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
     void (async () => {
       try {
+        const user = await getCurrentUser();
         const nextCheckout = await paymentService.getRentCheckout(bookingId);
 
         if (isMounted) {
           setCheckout(nextCheckout);
+          setPhone(user?.phone ?? "");
           setError(null);
         }
       } catch (loadError) {
@@ -67,9 +74,58 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
     };
   }, [bookingId]);
 
+  useEffect(() => {
+    if (!pendingPaymentId || !isPolling) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    const poll = async () => {
+      try {
+        const statusResult = await getStkPaymentStatus(pendingPaymentId);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (
+          statusResult.payment.status === PaymentStatus.COMPLETED ||
+          statusResult.payment.status === PaymentStatus.CONFIRMED
+        ) {
+          setIsPolling(false);
+          router.push("/bookings?payment=rent-completed");
+          return;
+        }
+
+        if (statusResult.payment.status === PaymentStatus.FAILED) {
+          setIsPolling(false);
+          setPendingPaymentId(null);
+          setError(statusResult.payment.providerResultDesc ?? "The M-Pesa payment failed or was cancelled.");
+        }
+      } catch (pollError) {
+        if (isMounted) {
+          setError(getErrorMessage(pollError));
+          setIsPolling(false);
+        }
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void poll();
+    }, 5000);
+
+    void poll();
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [isPolling, pendingPaymentId, router]);
+
   async function handlePayRent() {
     setIsSubmitting(true);
     setError(null);
+    setStatusMessage(null);
 
     try {
       const user = await getCurrentUser();
@@ -79,18 +135,27 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
         return;
       }
 
-      if (!user.phone) {
-        throw new Error("Add a phone number to your profile before starting an M-Pesa payment.");
+      if (!phone.trim()) {
+        throw new Error("Enter the Safaricom number that should receive the STK push.");
       }
 
-      const payment = await paymentService.createRentPayment(bookingId, PaymentMethod.PLATFORM);
-      const mpesaResponse = await paymentService.initiateMpesaPayment(payment.amount, user.phone);
+      const paymentResponse = await startStkPayment({
+        bookingId,
+        phone
+      });
 
-      if (!mpesaResponse.success) {
-        throw new Error("The mock M-Pesa flow did not return a success response.");
+      setPendingPaymentId(paymentResponse.payment.id);
+      setStatusMessage(paymentResponse.customerMessage || "Waiting for the M-Pesa payment prompt...");
+
+      if (
+        paymentResponse.payment.status === PaymentStatus.COMPLETED ||
+        paymentResponse.payment.status === PaymentStatus.CONFIRMED
+      ) {
+        router.push("/bookings?payment=rent-completed");
+        return;
       }
 
-      router.push("/bookings?payment=rent-pending");
+      setIsPolling(true);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
@@ -122,10 +187,11 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
 
   const canPayRent =
     checkout.bookingStatus === "active" &&
-    checkout.depositPaymentStatus === "confirmed" &&
+    (checkout.depositPaymentStatus === "confirmed" || checkout.depositPaymentStatus === "completed") &&
     checkout.remainingRentAmount > 0 &&
     checkout.rentPaymentStatus !== "pending" &&
-    checkout.rentPaymentStatus !== "confirmed";
+    checkout.rentPaymentStatus !== "confirmed" &&
+    checkout.rentPaymentStatus !== "completed";
 
   return (
     <div className="space-y-3">
@@ -175,15 +241,25 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button size="lg" onClick={handlePayRent} disabled={!canPayRent || isSubmitting}>
-              {isSubmitting ? "Processing..." : "Pay Rent"}
-            </Button>
+            <div className="min-w-[220px] flex-1 space-y-2">
+              <Input
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="254708374149"
+                disabled={isSubmitting || isPolling}
+              />
+              <Button size="lg" onClick={handlePayRent} disabled={!canPayRent || isSubmitting || isPolling}>
+                {isSubmitting ? "Sending STK..." : isPolling ? "Waiting for payment..." : "Pay Rent"}
+              </Button>
+              {statusMessage ? <p className="text-[11px] text-muted-foreground">{statusMessage}</p> : null}
+            </div>
             <Link href="/bookings" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
               Back to bookings
             </Link>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Rent payments stay pending after the M-Pesa request and then move to completed once landlord or admin confirms them.
+            Rent payments will stay pending until the Daraja callback confirms the STK payment.
           </p>
         </CardContent>
       </Card>

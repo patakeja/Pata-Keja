@@ -9,6 +9,7 @@ import {
   MIN_BOOKING_CAPACITY_MULTIPLIER,
   MIN_REFUND_PERCENTAGE
 } from "@/config/finance";
+import { isDarajaConfigured } from "@/config/env";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { AuthService } from "@/services/auth/auth.service";
 import { BookingService } from "@/services/bookings/booking.service";
@@ -22,12 +23,15 @@ import {
   PaymentType,
   ServiceErrorCode,
   UserRole,
+  type AuthenticatedUser,
+  type DarajaStkPushResponse,
   type DepositCheckout,
   type DepositPaymentBundle,
   type FinanceSettings,
   type MpesaInitiationResult,
   type PaymentConfirmationActor,
   type PaymentRecord,
+  type PaymentStatusPollResult,
   type RentCheckout
 } from "@/types";
 
@@ -73,7 +77,7 @@ export class PaymentService {
   }
 
   isEnabled() {
-    return false;
+    return isDarajaConfigured();
   }
 
   async getFinanceSettings(): Promise<FinanceSettings> {
@@ -138,6 +142,16 @@ export class PaymentService {
   async createDepositPayment(listingId: string, userId?: string): Promise<DepositPaymentBundle> {
     const client = this.resolveClient();
     const actor = await this.authService.requireRole([UserRole.TENANT], client);
+    return this.createDepositPaymentForActor(listingId, actor, userId, client);
+  }
+
+  async createDepositPaymentForActor(
+    listingId: string,
+    actor: AuthenticatedUser,
+    userId?: string,
+    clientOverride?: ServiceClient
+  ): Promise<DepositPaymentBundle> {
+    const client = clientOverride ?? this.resolveClient();
     const paymentUserId = this.resolveActorUserId(actor.id, userId);
     const activeBooking = await this.getActiveBookingForUserListing(client, listingId, paymentUserId);
     let existingBooking = activeBooking;
@@ -156,6 +170,13 @@ export class PaymentService {
             ServiceErrorCode.VALIDATION_ERROR,
             "The existing deposit for this booking has already been refunded."
           );
+        }
+
+        if (this.isSuccessfulPaymentStatus(existingDepositPayment.status)) {
+          return {
+            booking: this.mapBookingRecord(existingBooking),
+            payment: this.mapPaymentRecord(existingDepositPayment)
+          };
         }
 
         return {
@@ -218,7 +239,11 @@ export class PaymentService {
       throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Refunded deposit payments cannot be confirmed.");
     }
 
-    if (payment.status === PaymentStatus.CONFIRMED) {
+    if (this.isSuccessfulPaymentStatus(payment.status)) {
+      if (!payment.booking.deposit_paid) {
+        await this.markBookingDepositPaid(client, payment.booking.id);
+      }
+
       return this.mapPaymentRecord(payment);
     }
 
@@ -230,7 +255,7 @@ export class PaymentService {
     const { data, error } = await client
       .from("payments")
       .update({
-        status: PaymentStatus.CONFIRMED
+        status: PaymentStatus.COMPLETED
       })
       .eq("id", payment.id)
       .select("*")
@@ -240,13 +265,24 @@ export class PaymentService {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to confirm the deposit payment.", error);
     }
 
+    await this.markBookingDepositPaid(client, payment.booking.id);
+
     return this.mapPaymentRecord(data);
   }
 
   async createRentPayment(bookingId: string, method: PaymentMethod): Promise<PaymentRecord> {
     const client = this.resolveClient();
     const actor = await this.authService.requireCurrentUser(client);
+    return this.createRentPaymentForActor(bookingId, method, actor, client);
+  }
 
+  async createRentPaymentForActor(
+    bookingId: string,
+    method: PaymentMethod,
+    actor: AuthenticatedUser,
+    clientOverride?: ServiceClient
+  ): Promise<PaymentRecord> {
+    const client = clientOverride ?? this.resolveClient();
     this.assertPaymentMethod(method);
 
     const booking = await this.getBookingWithListingAndPayments(client, bookingId);
@@ -270,7 +306,7 @@ export class PaymentService {
 
     const depositPayment = this.findLatestPaymentByType(booking.payments, PaymentType.DEPOSIT);
 
-    if (!depositPayment || depositPayment.status !== PaymentStatus.CONFIRMED) {
+    if (!depositPayment || !this.isSuccessfulPaymentStatus(depositPayment.status)) {
       throw new ServiceError(
         ServiceErrorCode.VALIDATION_ERROR,
         "Deposit payment must be confirmed before rent payment can start."
@@ -280,7 +316,7 @@ export class PaymentService {
     const existingRentPayment = this.findLatestPaymentByType(booking.payments, PaymentType.RENT);
 
     if (existingRentPayment) {
-      if (existingRentPayment.status === PaymentStatus.CONFIRMED) {
+      if (this.isSuccessfulPaymentStatus(existingRentPayment.status)) {
         throw new ServiceError(
           ServiceErrorCode.VALIDATION_ERROR,
           "Rent payment has already been confirmed for this booking."
@@ -389,7 +425,7 @@ export class PaymentService {
       return this.mapPaymentRecord(depositPayment);
     }
 
-    if (depositPayment.status !== PaymentStatus.CONFIRMED) {
+    if (!this.isSuccessfulPaymentStatus(depositPayment.status)) {
       throw new ServiceError(
         ServiceErrorCode.VALIDATION_ERROR,
         "Only confirmed deposit payments can be processed for refund."
@@ -463,16 +499,16 @@ export class PaymentService {
       throw new ServiceError(ServiceErrorCode.FORBIDDEN, "You do not have access to confirm this rent payment.");
     }
 
-    if (payment.status !== PaymentStatus.CONFIRMED && payment.booking.status === BookingStatus.EXPIRED) {
+    if (!this.isSuccessfulPaymentStatus(payment.status) && payment.booking.status === BookingStatus.EXPIRED) {
       throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Expired bookings cannot be completed.");
     }
 
-    if (payment.status !== PaymentStatus.CONFIRMED && this.hasExpired(payment.booking.expires_at)) {
+    if (!this.isSuccessfulPaymentStatus(payment.status) && this.hasExpired(payment.booking.expires_at)) {
       await this.markBookingExpired(client, payment.booking.id);
       throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "This booking has expired.");
     }
 
-    if (payment.status === PaymentStatus.CONFIRMED) {
+    if (this.isSuccessfulPaymentStatus(payment.status)) {
       await this.ensureBookingCompleted(client, payment.booking.id, payment.booking.status);
       return this.mapPaymentRecord(payment);
     }
@@ -483,7 +519,7 @@ export class PaymentService {
     const { data: updatedPayment, error: paymentUpdateError } = await client
       .from("payments")
       .update({
-        status: PaymentStatus.CONFIRMED,
+        status: PaymentStatus.COMPLETED,
         commission_amount: commissionAmount
       })
       .eq("id", payment.id)
@@ -497,6 +533,182 @@ export class PaymentService {
     await this.ensureBookingCompleted(client, payment.booking.id, payment.booking.status);
 
     return this.mapPaymentRecord(updatedPayment);
+  }
+
+  async attachStkRequestToPayment(
+    paymentId: string,
+    phone: string,
+    stkResponse: DarajaStkPushResponse
+  ): Promise<PaymentRecord> {
+    const client = this.resolveClient();
+    const { data, error } = await client
+      .from("payments")
+      .update({
+        phone,
+        checkout_request_id: stkResponse.CheckoutRequestID,
+        merchant_request_id: stkResponse.MerchantRequestID,
+        provider_result_desc: stkResponse.ResponseDescription,
+        provider_response: stkResponse as unknown as Database["public"]["Tables"]["payments"]["Update"]["provider_response"],
+        status: PaymentStatus.PENDING
+      })
+      .eq("id", paymentId)
+      .select("*")
+      .single();
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to attach the STK request to the payment.", error);
+    }
+
+    return this.mapPaymentRecord(data);
+  }
+
+  async markPaymentFailed(
+    paymentId: string,
+    resultDescription: string,
+    metadata?: {
+      resultCode?: number | null;
+      phone?: string | null;
+      providerResponse?: unknown;
+      checkoutRequestId?: string | null;
+      merchantRequestId?: string | null;
+    }
+  ): Promise<PaymentRecord> {
+    const client = this.resolveClient();
+    const { data, error } = await client
+      .from("payments")
+      .update({
+        status: PaymentStatus.FAILED,
+        provider_result_code: metadata?.resultCode ?? null,
+        provider_result_desc: resultDescription,
+        phone: metadata?.phone ?? null,
+        checkout_request_id: metadata?.checkoutRequestId ?? null,
+        merchant_request_id: metadata?.merchantRequestId ?? null,
+        provider_response:
+          (metadata?.providerResponse as Database["public"]["Tables"]["payments"]["Update"]["provider_response"]) ??
+          {}
+      })
+      .eq("id", paymentId)
+      .select("*")
+      .single();
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to mark the payment as failed.", error);
+    }
+
+    return this.mapPaymentRecord(data);
+  }
+
+  async getPaymentStatusForActor(paymentId: string, actor: AuthenticatedUser): Promise<PaymentStatusPollResult> {
+    const client = this.resolveClient();
+    const payment = await this.getPaymentForAction(client, paymentId);
+
+    if (!payment.booking) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Payment booking relation is missing.");
+    }
+
+    const canAccess =
+      actor.role === UserRole.ADMIN ||
+      actor.id === payment.user_id ||
+      (actor.role === UserRole.LANDLORD && payment.booking.listing?.landlord_id === actor.id);
+
+    if (!canAccess) {
+      throw new ServiceError(ServiceErrorCode.FORBIDDEN, "You do not have access to this payment.");
+    }
+
+    return {
+      payment: this.mapPaymentRecord(payment),
+      bookingId: payment.booking.id,
+      depositPaid: payment.booking.deposit_paid
+    };
+  }
+
+  async handleDarajaCallback(payload: unknown): Promise<PaymentStatusPollResult | null> {
+    const client = this.resolveClient();
+    const callback = this.extractDarajaCallback(payload);
+
+    if (!callback.checkoutRequestId && !callback.merchantRequestId) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Callback is missing the Daraja request identifiers.");
+    }
+
+    const payment = await this.getPaymentByProviderRequestIds(client, callback.checkoutRequestId, callback.merchantRequestId);
+
+    if (!payment || !payment.booking || !payment.booking.listing) {
+      return null;
+    }
+
+    if (callback.resultCode === 0) {
+      const commissionAmount =
+        payment.payment_type === PaymentType.RENT
+          ? this.calculateCommissionAmount(
+              this.toNumber(callback.amount ?? payment.amount),
+              await this.getLandlordCommissionPercentage(client, payment.booking.listing.landlord_id)
+            )
+          : this.toNumber(payment.commission_amount);
+
+      const { data: updatedPayment, error: paymentUpdateError } = await client
+        .from("payments")
+        .update({
+          status: PaymentStatus.COMPLETED,
+          amount: typeof callback.amount === "number" ? this.roundMoney(callback.amount) : payment.amount,
+          phone: callback.phone ?? payment.phone,
+          mpesa_receipt: callback.mpesaReceipt ?? payment.mpesa_receipt,
+          provider_result_code: callback.resultCode,
+          provider_result_desc: callback.resultDesc,
+          provider_response:
+            payload as Database["public"]["Tables"]["payments"]["Update"]["provider_response"],
+          commission_amount: commissionAmount
+        })
+        .eq("id", payment.id)
+        .select("*")
+        .single();
+
+      if (paymentUpdateError) {
+        throw new ServiceError(
+          ServiceErrorCode.DATABASE_ERROR,
+          "Unable to mark the Daraja payment as completed.",
+          paymentUpdateError
+        );
+      }
+
+      if (payment.payment_type === PaymentType.DEPOSIT) {
+        await this.markBookingDepositPaid(client, payment.booking.id);
+      }
+
+      if (payment.payment_type === PaymentType.RENT) {
+        await this.ensureBookingCompleted(client, payment.booking.id, payment.booking.status);
+      }
+
+      const refreshedPayment = await this.getPaymentForAction(client, updatedPayment.id);
+
+      if (!refreshedPayment.booking) {
+        throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Updated payment booking relation is missing.");
+      }
+
+      return {
+        payment: this.mapPaymentRecord(updatedPayment),
+        bookingId: refreshedPayment.booking.id,
+        depositPaid: refreshedPayment.booking.deposit_paid
+      };
+    }
+
+    const failedPayment = await this.markPaymentFailed(payment.id, callback.resultDesc, {
+      resultCode: callback.resultCode,
+      phone: callback.phone ?? payment.phone,
+      providerResponse: payload,
+      checkoutRequestId: callback.checkoutRequestId ?? payment.checkout_request_id,
+      merchantRequestId: callback.merchantRequestId ?? payment.merchant_request_id
+    });
+    const refreshedPayment = await this.getPaymentForAction(client, failedPayment.id);
+
+    if (!refreshedPayment.booking) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Updated payment booking relation is missing.");
+    }
+
+    return {
+      payment: failedPayment,
+      bookingId: refreshedPayment.booking.id,
+      depositPaid: refreshedPayment.booking.deposit_paid
+    };
   }
 
   private resolveClient() {
@@ -640,13 +852,55 @@ export class PaymentService {
     return data as PaymentForActionRow;
   }
 
+  private async getPaymentByProviderRequestIds(
+    client: ServiceClient,
+    checkoutRequestId?: string | null,
+    merchantRequestId?: string | null
+  ): Promise<PaymentForActionRow | null> {
+    let query = client.from("payments").select(
+      `
+        *,
+        booking:bookings(
+          *,
+          listing:listings(
+            id,
+            title,
+            price,
+            deposit_amount,
+            hold_duration_hours,
+            listing_type,
+            landlord_id,
+            is_active,
+            county:counties(name),
+            town:towns(name),
+            area:areas(name)
+          )
+        )
+      `
+    );
+
+    if (checkoutRequestId) {
+      query = query.eq("checkout_request_id", checkoutRequestId);
+    } else if (merchantRequestId) {
+      query = query.eq("merchant_request_id", merchantRequestId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to resolve the Daraja payment callback.", error);
+    }
+
+    return (data as PaymentForActionRow | null) ?? null;
+  }
+
   private async getPaymentByBookingAndType(client: ServiceClient, bookingId: string, paymentType: PaymentType) {
     const { data, error } = await client
       .from("payments")
       .select("*")
       .eq("booking_id", bookingId)
       .eq("payment_type", paymentType)
-      .in("status", [PaymentStatus.PENDING, PaymentStatus.CONFIRMED, PaymentStatus.PARTIALLY_REFUNDED])
+      .in("status", [PaymentStatus.PENDING, PaymentStatus.CONFIRMED, PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -708,6 +962,19 @@ export class PaymentService {
     }
   }
 
+  private async markBookingDepositPaid(client: ServiceClient, bookingId: string) {
+    const { error } = await client
+      .from("bookings")
+      .update({
+        deposit_paid: true
+      })
+      .eq("id", bookingId);
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to mark the booking deposit as paid.", error);
+    }
+  }
+
   private async markBookingExpired(client: ServiceClient, bookingId: string) {
     const { error } = await client
       .from("bookings")
@@ -737,7 +1004,9 @@ export class PaymentService {
     );
     const depositPaidAmount =
       depositPayment &&
-      [PaymentStatus.CONFIRMED, PaymentStatus.PARTIALLY_REFUNDED].includes(depositPayment.status)
+      [PaymentStatus.CONFIRMED, PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED].includes(
+        depositPayment.status
+      )
         ? this.toNumber(depositPayment.amount)
         : 0;
 
@@ -749,9 +1018,9 @@ export class PaymentService {
       remainingRentAmount,
       canPayRent:
         booking.status === BookingStatus.ACTIVE &&
-        depositPayment?.status === PaymentStatus.CONFIRMED &&
+        Boolean(depositPayment && this.isSuccessfulPaymentStatus(depositPayment.status)) &&
         remainingRentAmount > 0 &&
-        rentPayment?.status !== PaymentStatus.CONFIRMED &&
+        !Boolean(rentPayment && this.isSuccessfulPaymentStatus(rentPayment.status)) &&
         rentPayment?.status !== PaymentStatus.PENDING
     };
   }
@@ -846,6 +1115,7 @@ export class PaymentService {
       listingId: row.listing_id,
       status: row.status,
       depositAmount: this.toNumber(row.deposit_amount),
+      depositPaid: row.deposit_paid,
       expiresAt: row.expires_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -863,6 +1133,12 @@ export class PaymentService {
       status: row.status,
       commissionAmount: this.toNumber(row.commission_amount),
       refundAmount: this.toNumber(row.refund_amount),
+      phone: row.phone,
+      mpesaReceipt: row.mpesa_receipt,
+      checkoutRequestId: row.checkout_request_id,
+      merchantRequestId: row.merchant_request_id,
+      providerResultCode: row.provider_result_code,
+      providerResultDesc: row.provider_result_desc,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -894,6 +1170,67 @@ export class PaymentService {
 
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private isSuccessfulPaymentStatus(status: PaymentStatus) {
+    return status === PaymentStatus.CONFIRMED || status === PaymentStatus.COMPLETED;
+  }
+
+  private extractDarajaCallback(payload: unknown) {
+    const body = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>).Body : null;
+    const stkCallback =
+      typeof body === "object" && body !== null ? (body as Record<string, unknown>).stkCallback : null;
+    const callbackRecord =
+      typeof stkCallback === "object" && stkCallback !== null ? (stkCallback as Record<string, unknown>) : null;
+    const metadata =
+      callbackRecord && typeof callbackRecord.CallbackMetadata === "object" && callbackRecord.CallbackMetadata !== null
+        ? (callbackRecord.CallbackMetadata as Record<string, unknown>)
+        : null;
+    const items = Array.isArray(metadata?.Item) ? (metadata?.Item as Array<Record<string, unknown>>) : [];
+    const itemMap = new Map(
+      items
+        .filter((item) => typeof item.Name === "string")
+        .map((item) => [String(item.Name), item.Value])
+    );
+
+    return {
+      merchantRequestId: typeof callbackRecord?.MerchantRequestID === "string" ? callbackRecord.MerchantRequestID : null,
+      checkoutRequestId: typeof callbackRecord?.CheckoutRequestID === "string" ? callbackRecord.CheckoutRequestID : null,
+      resultCode:
+        typeof callbackRecord?.ResultCode === "number"
+          ? callbackRecord.ResultCode
+          : Number(callbackRecord?.ResultCode ?? -1),
+      resultDesc:
+        typeof callbackRecord?.ResultDesc === "string" ? callbackRecord.ResultDesc : "Daraja callback received.",
+      amount: this.normalizeOptionalNumber(itemMap.get("Amount")),
+      mpesaReceipt: this.normalizeOptionalString(itemMap.get("MpesaReceiptNumber")),
+      phone: this.normalizeOptionalString(itemMap.get("PhoneNumber"))
+    };
+  }
+
+  private normalizeOptionalString(value: unknown) {
+    if (typeof value === "string") {
+      return value.trim() || null;
+    }
+
+    if (typeof value === "number") {
+      return String(value);
+    }
+
+    return null;
+  }
+
+  private normalizeOptionalNumber(value: unknown) {
+    if (typeof value === "number") {
+      return value;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      const parsedValue = Number(value);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    }
+
+    return null;
   }
 
   private toNumber(value: number | string | null | undefined) {

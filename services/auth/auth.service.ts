@@ -472,6 +472,28 @@ export class AuthService {
     return authenticatedUser;
   }
 
+  async getCurrentUserFromAccessToken(accessToken: string, client?: ServiceClient): Promise<AuthenticatedUser | null> {
+    const supabase = this.resolveClient(client);
+    const normalizedToken = accessToken.trim();
+
+    if (!normalizedToken) {
+      return null;
+    }
+
+    const { data, error } = await supabase.auth.getUser(normalizedToken);
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to validate the current access token.", error);
+    }
+
+    if (!data.user) {
+      return null;
+    }
+
+    const persistedProfile = await this.ensureUserProfile(data.user, supabase);
+    return this.mapAuthenticatedUser(data.user, persistedProfile.profile);
+  }
+
   async requireCurrentUser(client?: ServiceClient): Promise<AuthenticatedUser> {
     const user = await this.getCurrentUser(client);
 

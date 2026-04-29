@@ -8,13 +8,14 @@ type PaymentStatusBadgeProps = {
   status: PaymentStatus | BookingStatus;
 };
 
-const statusClasses: Record<PaymentStatus | BookingStatus, string> = {
+const statusClasses: Record<string, string> = {
   [PaymentStatus.PENDING]: "bg-amber-100 text-amber-800",
   [PaymentStatus.CONFIRMED]: "bg-emerald-100 text-emerald-800",
+  [PaymentStatus.COMPLETED]: "bg-emerald-100 text-emerald-800",
+  [PaymentStatus.FAILED]: "bg-rose-100 text-rose-800",
   [PaymentStatus.PARTIALLY_REFUNDED]: "bg-slate-200 text-slate-800",
   [BookingStatus.ACTIVE]: "bg-blue-100 text-blue-800",
-  [BookingStatus.EXPIRED]: "bg-rose-100 text-rose-800",
-  [BookingStatus.COMPLETED]: "bg-emerald-100 text-emerald-800"
+  [BookingStatus.EXPIRED]: "bg-rose-100 text-rose-800"
 };
 
 function formatStatusLabel(status: PaymentStatus | BookingStatus) {

@@ -20,7 +20,7 @@ export function PrebookPanel({
   quote,
   refundPercentage,
   action,
-  helperText = "Payment confirmation will plug into Daraja next. The current flow uses a safe mock response."
+  helperText = "You will receive an M-Pesa STK prompt on your phone to complete the reservation deposit."
 }: PrebookPanelProps) {
   const formatter = new Intl.NumberFormat("en-KE", {
     style: "currency",
