@@ -7,7 +7,7 @@ import { PrebookPanel } from "@/components/features/booking/prebook-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { buildRestrictedActionRedirect, getCurrentUser } from "@/lib/auth";
+import { buildRestrictedActionRedirect, getCurrentUser, getSession } from "@/lib/auth";
 import { getStkPaymentStatus, paymentService, startStkPayment } from "@/lib/paymentService";
 import { PaymentStatus, RestrictedAction } from "@/types";
 import type { DepositCheckout } from "@/types";
@@ -40,20 +40,20 @@ export function DepositCheckoutPanel({ listingId }: DepositCheckoutPanelProps) {
 
     void (async () => {
       try {
-        const user = await getCurrentUser();
+        const session = await getSession();
 
-        if (!user) {
+        if (!session?.access_token) {
           router.replace(buildRestrictedActionRedirect(RestrictedAction.BOOK, `/deposit/${listingId}`));
           return;
         }
 
-        if (isMounted) {
-          setPhone(user.phone ?? "");
-        }
+        const [user, nextCheckout] = await Promise.all([
+          getCurrentUser().catch(() => null),
+          paymentService.getDepositCheckout(listingId)
+        ]);
 
-        const nextCheckout = await paymentService.getDepositCheckout(listingId);
-
         if (isMounted) {
+          setPhone(user?.phone ?? "");
           setCheckout(nextCheckout);
           setError(null);
         }
@@ -127,9 +127,9 @@ export function DepositCheckoutPanel({ listingId }: DepositCheckoutPanelProps) {
     setStatusMessage(null);
 
     try {
-      const user = await getCurrentUser();
+      const session = await getSession();
 
-      if (!user) {
+      if (!session?.access_token) {
         router.push(buildRestrictedActionRedirect(RestrictedAction.BOOK, `/deposit/${listingId}`));
         return;
       }

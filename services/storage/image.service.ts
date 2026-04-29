@@ -135,7 +135,13 @@ export class ImageService {
           });
 
         if (error) {
-          throw new ServiceError(ServiceErrorCode.STORAGE_ERROR, "Unable to upload one or more listing images.", error);
+          throw new ServiceError(
+            ServiceErrorCode.STORAGE_ERROR,
+            error.message?.trim()
+              ? `Unable to upload ${file.name}: ${error.message}`
+              : "Unable to upload one or more listing images.",
+            error
+          );
         }
 
         uploadedPaths.push(storedPath);

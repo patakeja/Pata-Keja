@@ -8,7 +8,7 @@ import { PaymentStatusBadge } from "@/components/features/booking/payment-status
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { buildRestrictedActionRedirect, getCurrentUser } from "@/lib/auth";
+import { buildRestrictedActionRedirect, getCurrentUser, getSession } from "@/lib/auth";
 import { getStkPaymentStatus, paymentService, startStkPayment } from "@/lib/paymentService";
 import { cn } from "@/lib/utils";
 import { PaymentStatus, RestrictedAction } from "@/types";
@@ -50,8 +50,17 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
 
     void (async () => {
       try {
-        const user = await getCurrentUser();
-        const nextCheckout = await paymentService.getRentCheckout(bookingId);
+        const session = await getSession();
+
+        if (!session?.access_token) {
+          router.replace(buildRestrictedActionRedirect(RestrictedAction.BOOK, `/bookings/${bookingId}/rent`));
+          return;
+        }
+
+        const [user, nextCheckout] = await Promise.all([
+          getCurrentUser().catch(() => null),
+          paymentService.getRentCheckout(bookingId)
+        ]);
 
         if (isMounted) {
           setCheckout(nextCheckout);
@@ -72,7 +81,7 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
     return () => {
       isMounted = false;
     };
-  }, [bookingId]);
+  }, [bookingId, router]);
 
   useEffect(() => {
     if (!pendingPaymentId || !isPolling) {
@@ -128,9 +137,9 @@ export function RentPaymentPanel({ bookingId }: RentPaymentPanelProps) {
     setStatusMessage(null);
 
     try {
-      const user = await getCurrentUser();
+      const session = await getSession();
 
-      if (!user) {
+      if (!session?.access_token) {
         router.push(buildRestrictedActionRedirect(RestrictedAction.BOOK, `/bookings/${bookingId}/rent`));
         return;
       }
