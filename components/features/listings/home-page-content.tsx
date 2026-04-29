@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 
 import { HouseTypeChips } from "@/components/features/listings/house-type-chips";
@@ -45,7 +46,9 @@ export async function HomePageContent() {
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold text-foreground">Categories</h2>
-        <HouseTypeChips />
+        <Suspense fallback={<div className="h-[108px] rounded-2xl border border-dashed border-border/70 bg-muted/20" />}>
+          <HouseTypeChips />
+        </Suspense>
       </section>
 
       <Card>

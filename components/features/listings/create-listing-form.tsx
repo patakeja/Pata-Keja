@@ -26,6 +26,7 @@ type CreateListingFormProps = {
   workspaceLabel: "Landlord" | "Admin";
   title: string;
   description: string;
+  catalogRefreshToken?: number;
 };
 
 type ListingFormState = {
@@ -109,7 +110,12 @@ function buildCreateListingInput(state: ListingFormState): CreateListingInput {
   };
 }
 
-export function CreateListingForm({ workspaceLabel, title, description }: CreateListingFormProps) {
+export function CreateListingForm({
+  workspaceLabel,
+  title,
+  description,
+  catalogRefreshToken = 0
+}: CreateListingFormProps) {
   const router = useRouter();
   const [formState, setFormState] = useState<ListingFormState>(initialFormState);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -125,8 +131,7 @@ export function CreateListingForm({ workspaceLabel, title, description }: Create
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isSupabaseReady = isSupabaseConfigured();
-  const hasSeededLocations =
-    catalog.counties.length > 0 || catalog.towns.length > 0 || catalog.areas.length > 0;
+  const hasSeededLocations = catalog.counties.length > 0;
   const selectedCountyId = Number.parseInt(formState.countyId, 10);
   const selectedTownId = Number.parseInt(formState.townId, 10);
   const availableTowns = Number.isFinite(selectedCountyId)
@@ -167,7 +172,7 @@ export function CreateListingForm({ workspaceLabel, title, description }: Create
     return () => {
       isMounted = false;
     };
-  }, [isSupabaseReady]);
+  }, [catalogRefreshToken, isSupabaseReady]);
 
   function updateField<Key extends keyof ListingFormState>(key: Key, value: ListingFormState[Key]) {
     setFormState((currentState) => ({
@@ -247,7 +252,9 @@ export function CreateListingForm({ workspaceLabel, title, description }: Create
 
           {hasSeededLocations ? null : !isLocationLoading ? (
             <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
-              Location options are not seeded yet. Enter the existing county, town, and area IDs manually.
+              No managed locations are available yet. {workspaceLabel === "Admin"
+                ? "Create a county/town/area from the locations card first."
+                : "Ask an admin to create the required location first."}
             </p>
           ) : null}
 
@@ -436,105 +443,94 @@ export function CreateListingForm({ workspaceLabel, title, description }: Create
             <label htmlFor="county-id" className="text-[11px] font-medium text-foreground">
               County
             </label>
-            {catalog.counties.length > 0 ? (
-              <select
-                id="county-id"
-                className={inputClassName}
-                value={formState.countyId}
-                onChange={handleCountyChange}
-                disabled={isSubmitting || !isSupabaseReady || isLocationLoading}
-                required
-              >
-                <option value="">Select county</option>
-                {catalog.counties.map((county) => (
-                  <option key={county.id} value={county.id}>
-                    {county.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <Input
-                id="county-id"
-                type="number"
-                min="1"
-                step="1"
-                value={formState.countyId}
-                onChange={handleCountyChange}
-                placeholder="County ID"
-                disabled={isSubmitting || !isSupabaseReady || isLocationLoading}
-                required
-              />
-            )}
+            <select
+              id="county-id"
+              className={inputClassName}
+              value={formState.countyId}
+              onChange={handleCountyChange}
+              disabled={isSubmitting || !isSupabaseReady || isLocationLoading || catalog.counties.length === 0}
+              required
+            >
+              <option value="">{catalog.counties.length > 0 ? "Select county" : "No counties available yet"}</option>
+              {catalog.counties.map((county) => (
+                <option key={county.id} value={county.id}>
+                  {county.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">
             <label htmlFor="town-id" className="text-[11px] font-medium text-foreground">
               Town
             </label>
-            {catalog.towns.length > 0 ? (
-              <select
-                id="town-id"
-                className={inputClassName}
-                value={formState.townId}
-                onChange={handleTownChange}
-                disabled={isSubmitting || !isSupabaseReady || isLocationLoading}
-                required
-              >
-                <option value="">Select town</option>
-                {availableTowns.map((town) => (
-                  <option key={town.id} value={town.id}>
-                    {town.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <Input
-                id="town-id"
-                type="number"
-                min="1"
-                step="1"
-                value={formState.townId}
-                onChange={handleTownChange}
-                placeholder="Town ID"
-                disabled={isSubmitting || !isSupabaseReady || isLocationLoading}
-                required
-              />
-            )}
+            <select
+              id="town-id"
+              className={inputClassName}
+              value={formState.townId}
+              onChange={handleTownChange}
+              disabled={
+                isSubmitting ||
+                !isSupabaseReady ||
+                isLocationLoading ||
+                !formState.countyId ||
+                availableTowns.length === 0
+              }
+              required
+            >
+              <option value="">
+                {!formState.countyId
+                  ? "Select county first"
+                  : availableTowns.length > 0
+                    ? "Select town"
+                    : "No towns available for this county"}
+              </option>
+              {availableTowns.map((town) => (
+                <option key={town.id} value={town.id}>
+                  {town.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">
             <label htmlFor="area-id" className="text-[11px] font-medium text-foreground">
               Area
             </label>
-            {catalog.areas.length > 0 ? (
-              <select
-                id="area-id"
-                className={inputClassName}
-                value={formState.areaId}
-                onChange={(event) => updateField("areaId", event.target.value)}
-                disabled={isSubmitting || !isSupabaseReady || isLocationLoading}
-                required
-              >
-                <option value="">Select area</option>
-                {availableAreas.map((area) => (
-                  <option key={area.id} value={area.id}>
-                    {area.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <Input
-                id="area-id"
-                type="number"
-                min="1"
-                step="1"
-                value={formState.areaId}
-                onChange={(event) => updateField("areaId", event.target.value)}
-                placeholder="Area ID"
-                disabled={isSubmitting || !isSupabaseReady || isLocationLoading}
-                required
-              />
-            )}
+            <select
+              id="area-id"
+              className={inputClassName}
+              value={formState.areaId}
+              onChange={(event) => updateField("areaId", event.target.value)}
+              disabled={
+                isSubmitting ||
+                !isSupabaseReady ||
+                isLocationLoading ||
+                !formState.townId ||
+                availableAreas.length === 0
+              }
+              required
+            >
+              <option value="">
+                {!formState.townId
+                  ? "Select town first"
+                  : availableAreas.length > 0
+                    ? "Select area"
+                    : "No areas available for this town"}
+              </option>
+              {availableAreas.map((area) => (
+                <option key={area.id} value={area.id}>
+                  {area.name}
+                </option>
+              ))}
+            </select>
+            {formState.townId && availableAreas.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                {workspaceLabel === "Admin"
+                  ? "Create an area for this town in the locations card before publishing."
+                  : "Ask an admin to create an area for this town before publishing."}
+              </p>
+            ) : null}
           </div>
 
           <label className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-foreground">
@@ -565,7 +561,16 @@ export function CreateListingForm({ workspaceLabel, title, description }: Create
         <p className={cn("text-[11px] text-muted-foreground", isLocationLoading ? "opacity-100" : "opacity-0")}>
           Loading location catalog...
         </p>
-        <Button type="submit" disabled={isSubmitting || !isSupabaseReady || isLocationLoading}>
+        <Button
+          type="submit"
+          disabled={
+            isSubmitting ||
+            !isSupabaseReady ||
+            isLocationLoading ||
+            catalog.counties.length === 0 ||
+            availableAreas.length === 0
+          }
+        >
           {isSubmitting ? "Publishing..." : "Create listing"}
         </Button>
       </div>

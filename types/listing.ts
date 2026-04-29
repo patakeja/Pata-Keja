@@ -1,3 +1,5 @@
+import type { LocationCatalog } from "./location";
+
 export enum ListingType {
   LONG_TERM = "long_term",
   SHORT_STAY = "short_stay"
@@ -166,22 +168,7 @@ export type UpdateListingImagesInput = {
   coverImagePath?: string | null;
 };
 
-export type ListingLocationCatalog = {
-  counties: Array<{
-    id: number;
-    name: string;
-  }>;
-  towns: Array<{
-    id: number;
-    countyId: number;
-    name: string;
-  }>;
-  areas: Array<{
-    id: number;
-    townId: number;
-    name: string;
-  }>;
-};
+export type ListingLocationCatalog = LocationCatalog;
 
 export type ListingImageUploadProgress = {
   stage: "compressing" | "uploading";

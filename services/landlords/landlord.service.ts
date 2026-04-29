@@ -307,8 +307,7 @@ export class LandlordService {
       .select("id, available_units, available_from, last_image_update_at, landlord_id")
       .order("created_at", { ascending: false });
 
-    const scopedQuery =
-      actor.role === UserRole.ADMIN ? query.eq("landlord_id", actor.id) : query.eq("landlord_id", actor.id);
+    const scopedQuery = actor.role === UserRole.ADMIN ? query : query.eq("landlord_id", actor.id);
     const { data, error } = await scopedQuery;
 
     if (error) {

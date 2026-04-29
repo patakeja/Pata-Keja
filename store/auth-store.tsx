@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { getCurrentUserWithProfile, getSession, onAuthStateChange } from "@/lib/auth";
+import { chatService } from "@/lib/chatService";
 import type { AuthenticatedUser } from "@/types";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -32,6 +33,7 @@ export function AuthStoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [lastEvent, setLastEvent] = useState<AuthChangeEvent | null>(null);
+  const currentUserId = user?.id ?? null;
 
   const applySnapshot = useCallback(
     (nextSession: Session | null, nextUser: AuthenticatedUser | null, nextEvent: AuthChangeEvent | null) => {
@@ -72,6 +74,42 @@ export function AuthStoreProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, [applySnapshot, refreshAuthState]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !currentUserId) {
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    const syncPresence = async (isOnline: boolean) => {
+      if (!isMounted) {
+        return;
+      }
+
+      await chatService.setUserPresence(isOnline).catch(() => undefined);
+    };
+
+    void syncPresence(!document.hidden);
+
+    const handleVisibilityChange = () => {
+      void syncPresence(!document.hidden);
+    };
+
+    const handlePageHide = () => {
+      void syncPresence(false);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      isMounted = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      void chatService.setUserPresence(false).catch(() => undefined);
+    };
+  }, [currentUserId, status]);
 
   return (
     <AuthStoreContext.Provider

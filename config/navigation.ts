@@ -25,6 +25,7 @@ export const landlordNavigation: NavigationItem[] = [
 export const adminNavigation: NavigationItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", description: "Marketplace operations overview" },
   { href: "/admin/listings", label: "Houses", description: "Listing review and inventory control" },
+  { href: "/admin/locations", label: "Locations", description: "Counties, towns, and area setup" },
   { href: "/admin/chats", label: "Chats", description: "Read-only booking conversations" },
   { href: "/admin/landlords", label: "Landlords", description: "Access control and commission settings" },
   { href: "/admin/featured", label: "Featured", description: "Homepage curation and spotlight control" },

@@ -25,10 +25,16 @@ import {
 
 type ServiceClient = SupabaseClient<Database>;
 type UserProfileRow = Database["public"]["Tables"]["users"]["Row"];
+type CountyRow = Database["public"]["Tables"]["counties"]["Row"];
+type TownRow = Database["public"]["Tables"]["towns"]["Row"];
+type UserProfileRecord = UserProfileRow & {
+  county: Pick<CountyRow, "id" | "name"> | null;
+  town: Pick<TownRow, "id" | "name" | "county_id"> | null;
+};
 type AllowedSignupRole = Exclude<UserRole, UserRole.GUEST | UserRole.ADMIN>;
 type PersistedUserRole = Exclude<UserRole, UserRole.GUEST>;
 type UserProfileResolution = {
-  profile: UserProfileRow;
+  profile: UserProfileRecord;
   isNewUser: boolean;
 };
 type AuthStateChangePayload = {
@@ -257,21 +263,14 @@ export class AuthService {
 
     if (existingProfile) {
       if (existingProfile.email !== resolvedEmail && resolvedEmail) {
-        const { data, error } = await supabase
-          .from("users")
-          .update({
-            email: resolvedEmail
-          })
-          .eq("id", authUser.id)
-          .select("*")
-          .single();
+        const { error } = await supabase.from("users").update({ email: resolvedEmail }).eq("id", authUser.id);
 
         if (error) {
           throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to synchronize the user email.", error);
         }
 
         return {
-          profile: data,
+          profile: await this.requireUserProfileById(supabase, authUser.id),
           isNewUser: false
         };
       }
@@ -282,29 +281,25 @@ export class AuthService {
       };
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .upsert(
-        {
-          id: authUser.id,
-          email: resolvedEmail,
-          full_name: resolvedFullName,
-          phone: resolvedPhone,
-          role: resolvedRole
-        },
-        {
-          onConflict: "id"
-        }
-      )
-      .select("*")
-      .single();
+    const { error } = await supabase.from("users").upsert(
+      {
+        id: authUser.id,
+        email: resolvedEmail,
+        full_name: resolvedFullName,
+        phone: resolvedPhone,
+        role: resolvedRole
+      },
+      {
+        onConflict: "id"
+      }
+    );
 
     if (error) {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to persist the user profile.", error);
     }
 
     return {
-      profile: data,
+      profile: await this.requireUserProfileById(supabase, authUser.id),
       isNewUser: true
     };
   }
@@ -315,9 +310,17 @@ export class AuthService {
     const nextFullName = input.fullName?.trim();
     const nextPhone =
       typeof input.phone === "string" ? input.phone.trim() || null : input.phone === null ? null : undefined;
+    const currentCountyId = currentUser.countyId;
+    const currentTownId = currentUser.townId;
+    const nextCountyId = typeof input.countyId !== "undefined" ? input.countyId : currentCountyId;
+    const nextTownId = typeof input.townId !== "undefined" ? input.townId : currentTownId;
 
     if (typeof nextFullName === "string" && !nextFullName) {
       throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Full name cannot be blank.");
+    }
+
+    if (nextTownId !== null && typeof nextTownId === "number" && (nextCountyId === null || typeof nextCountyId !== "number")) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Select a county before choosing a town.");
     }
 
     const updates: Database["public"]["Tables"]["users"]["Update"] = {};
@@ -330,6 +333,20 @@ export class AuthService {
       updates.phone = nextPhone;
     }
 
+    if (typeof input.countyId !== "undefined") {
+      updates.county_id = input.countyId;
+
+      if (input.countyId === null) {
+        updates.town_id = null;
+      } else if (input.countyId !== currentCountyId && typeof input.townId === "undefined") {
+        updates.town_id = null;
+      }
+    }
+
+    if (typeof input.townId !== "undefined") {
+      updates.town_id = input.townId;
+    }
+
     if (Object.keys(updates).length === 0) {
       return currentUser;
     }
@@ -340,18 +357,14 @@ export class AuthService {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to reload the authenticated user.", authError);
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .update(updates)
-      .eq("id", currentUser.id)
-      .select("*")
-      .single();
+    const { error } = await supabase.from("users").update(updates).eq("id", currentUser.id);
 
     if (error) {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to update the user profile.", error);
     }
 
-    const authenticatedUser = this.mapAuthenticatedUser(authData.user, data);
+    const profileRecord = await this.requireUserProfileById(supabase, currentUser.id);
+    const authenticatedUser = this.mapAuthenticatedUser(authData.user, profileRecord);
     this.syncAuthSnapshot(authenticatedUser);
 
     return authenticatedUser;
@@ -374,20 +387,19 @@ export class AuthService {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to update the account email.", authError);
     }
 
-    const { data: profileData, error: profileError } = await supabase
+    const { error: profileError } = await supabase
       .from("users")
       .update({
         email: normalizedEmail
       })
-      .eq("id", currentUser.id)
-      .select("*")
-      .single();
+      .eq("id", currentUser.id);
 
     if (profileError) {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to synchronize the profile email.", profileError);
     }
 
-    const authenticatedUser = this.mapAuthenticatedUser(authUpdate.user, profileData);
+    const profileRecord = await this.requireUserProfileById(supabase, currentUser.id);
+    const authenticatedUser = this.mapAuthenticatedUser(authUpdate.user, profileRecord);
     this.syncAuthSnapshot(authenticatedUser);
 
     return authenticatedUser;
@@ -586,17 +598,31 @@ export class AuthService {
     }
   }
 
-  private async getUserProfileById(client: ServiceClient, userId: string): Promise<UserProfileRow | null> {
-    const { data, error } = await client.from("users").select("*").eq("id", userId).maybeSingle();
+  private async getUserProfileById(client: ServiceClient, userId: string): Promise<UserProfileRecord | null> {
+    const { data, error } = await client
+      .from("users")
+      .select(this.userProfileSelect())
+      .eq("id", userId)
+      .maybeSingle();
 
     if (error) {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load the user profile.", error);
     }
 
-    return data;
+    return data as UserProfileRecord | null;
   }
 
-  private mapAuthenticatedUser(authUser: User, profile: UserProfileRow): AuthenticatedUser {
+  private async requireUserProfileById(client: ServiceClient, userId: string): Promise<UserProfileRecord> {
+    const profile = await this.getUserProfileById(client, userId);
+
+    if (!profile) {
+      throw new ServiceError(ServiceErrorCode.NOT_FOUND, "The user profile could not be found.");
+    }
+
+    return profile;
+  }
+
+  private mapAuthenticatedUser(authUser: User, profile: UserProfileRecord): AuthenticatedUser {
     if (!authUser.email) {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Authenticated user is missing an email address.");
     }
@@ -606,11 +632,19 @@ export class AuthService {
       email: authUser.email,
       fullName: profile.full_name,
       phone: profile.phone,
+      countyId: profile.county_id,
+      countyName: profile.county?.name ?? null,
+      townId: profile.town_id,
+      townName: profile.town?.name ?? null,
       role: profile.role,
       provider: this.resolveIdentityProvider(authUser),
       createdAt: profile.created_at,
       lastSignInAt: authUser.last_sign_in_at ?? null
     };
+  }
+
+  private userProfileSelect() {
+    return "*,county:counties(id,name),town:towns(id,name,county_id)";
   }
 
   private resolveSignupRole(role?: AllowedSignupRole): AllowedSignupRole {

@@ -41,6 +41,10 @@ export type AuthenticatedUser = {
   email: string;
   fullName: string;
   phone: string | null;
+  countyId: number | null;
+  countyName: string | null;
+  townId: number | null;
+  townName: string | null;
   role: Exclude<UserRole, UserRole.GUEST>;
   provider: IdentityProvider;
   createdAt: string;
@@ -56,6 +60,8 @@ export type AuthCallbackResult = {
 export type UserProfileUpdateInput = {
   fullName?: string;
   phone?: string | null;
+  countyId?: number | null;
+  townId?: number | null;
 };
 
 export type UserEmailUpdateInput = {

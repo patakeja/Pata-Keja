@@ -9,6 +9,7 @@ import { houseTypePresentation } from "@/config/listingPresentation";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { AuthService } from "@/services/auth/auth.service";
 import { getPlaceholderListingById, getPlaceholderListings } from "@/services/mock/placeholder-data";
+import { LocationService } from "@/services/locations/location.service";
 import { ServiceError } from "@/services/shared/service-error";
 import { ImageService } from "@/services/storage/image.service";
 import type { Database } from "@/types/database";
@@ -34,9 +35,6 @@ import {
 type ServiceClient = SupabaseClient<Database>;
 type ListingRow = Database["public"]["Tables"]["listings"]["Row"];
 type UserRow = Database["public"]["Tables"]["users"]["Row"];
-type CountyRow = Database["public"]["Tables"]["counties"]["Row"];
-type TownRow = Database["public"]["Tables"]["towns"]["Row"];
-type AreaRow = Database["public"]["Tables"]["areas"]["Row"];
 type LocationRow = {
   id: number;
   name: string;
@@ -50,10 +48,12 @@ type ListingQueryRow = ListingRow & {
 export class ListingService {
   private readonly authService: AuthService;
   private readonly imageService: ImageService;
+  private readonly locationService: LocationService;
 
   constructor(private readonly clientFactory: () => ServiceClient) {
     this.authService = new AuthService(clientFactory);
     this.imageService = new ImageService(clientFactory);
+    this.locationService = new LocationService(clientFactory);
   }
 
   async getListings(filters: ListingFilters = {}): Promise<ListingSummary[]> {
@@ -246,41 +246,7 @@ export class ListingService {
       };
     }
 
-    const client = this.clientFactory();
-    const [countiesResult, townsResult, areasResult] = await Promise.all([
-      client.from("counties").select("id,name").order("name", { ascending: true }),
-      client.from("towns").select("id,name,county_id").order("name", { ascending: true }),
-      client.from("areas").select("id,name,town_id").order("name", { ascending: true })
-    ]);
-
-    if (countiesResult.error) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load counties.", countiesResult.error);
-    }
-
-    if (townsResult.error) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load towns.", townsResult.error);
-    }
-
-    if (areasResult.error) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load areas.", areasResult.error);
-    }
-
-    return {
-      counties: (countiesResult.data ?? []).map((county: Pick<CountyRow, "id" | "name">) => ({
-        id: county.id,
-        name: county.name
-      })),
-      towns: (townsResult.data ?? []).map((town: Pick<TownRow, "id" | "name" | "county_id">) => ({
-        id: town.id,
-        countyId: town.county_id,
-        name: town.name
-      })),
-      areas: (areasResult.data ?? []).map((area: Pick<AreaRow, "id" | "name" | "town_id">) => ({
-        id: area.id,
-        townId: area.town_id,
-        name: area.name
-      }))
-    };
+    return this.locationService.getLocationCatalog();
   }
 
   async getPublicListings(filters: ListingFilters = {}) {

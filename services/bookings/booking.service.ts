@@ -604,7 +604,8 @@ export class BookingService {
         longitude: row.listing.longitude,
         imagePaths,
         imageUrls: imagePaths.map((path) => signedUrlMap[path]).filter((value): value is string => Boolean(value)),
-        landlordName: row.listing.landlord?.full_name ?? null
+        landlordName: row.listing.landlord?.full_name ?? null,
+        landlordPhone: row.listing.landlord?.phone ?? null
       },
       paymentSummary: this.mapBookingPaymentSummary(row, row.listing, row.payments)
     };

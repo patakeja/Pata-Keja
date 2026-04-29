@@ -1,21 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CountdownChip } from "@/components/features/booking/countdown-chip";
 import { PaymentStatusBadge } from "@/components/features/booking/payment-status-badge";
-import { ChatThreadPanel } from "@/components/features/chat/chat-thread-panel";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ToastMessage } from "@/components/ui/toast-message";
 import { bookingService } from "@/lib/bookingService";
 import { chatService } from "@/lib/chatService";
 import { cn } from "@/lib/utils";
-import type { BookingDetail, ConversationThread } from "@/types";
+import { useAuthStore } from "@/store";
+import { MessageStatus, type BookingDetail, type ChatMessageRecord, type ConversationThread } from "@/types";
+
+import { CallLandlordButton } from "./call-landlord-button";
+import { ChatThreadPanel } from "./chat-thread-panel";
+import {
+  buildClientMessageId,
+  formatPresenceLabel,
+  getErrorMessage,
+  mergeChatMessages,
+  mergeConversationThread,
+  prependMessagePage
+} from "./message-utils";
 
 type BookingChatPanelProps = {
   bookingId: string;
 };
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("en-KE", {
+    style: "currency",
+    currency: "KES",
+    maximumFractionDigits: 0
+  }).format(amount);
+}
 
 function formatCoordinate(label: string, value: number | null) {
   if (value === null) {
@@ -25,72 +45,273 @@ function formatCoordinate(label: string, value: number | null) {
   return `${label}: ${value}`;
 }
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return "Something went wrong while loading this booking.";
+function getFirstName(fullName: string) {
+  return fullName.split(" ")[0] || fullName;
 }
 
 export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
+  const { user } = useAuthStore();
+  const realtimeControllerRef = useRef<ReturnType<typeof chatService.subscribeToConversationRealtime> | null>(null);
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [thread, setThread] = useState<ConversationThread | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ tone: "error" | "success"; message: string } | null>(null);
+  const conversationId = thread?.id ?? null;
+  const otherParticipantId = thread?.otherParticipant.id ?? null;
+  const currentUserId = user?.id ?? null;
+
+  const refreshThread = useCallback(
+    async (preserveMessages = true) => {
+      const nextThread = await chatService.getBookingConversation(bookingId);
+      setThread((currentThread) => {
+        const mergedThread = preserveMessages ? mergeConversationThread(currentThread, nextThread) : nextThread;
+        return {
+          ...mergedThread,
+          typingUserId: null
+        };
+      });
+      setChatError(null);
+      await chatService.markConversationAsRead(nextThread.id).catch(() => undefined);
+      return nextThread;
+    },
+    [bookingId]
+  );
+
+  const loadBookingConversation = useCallback(async () => {
+    const [nextBooking, nextThread] = await Promise.all([
+      bookingService.getBookingById(bookingId),
+      chatService.getBookingConversation(bookingId)
+    ]);
+
+    setBooking(nextBooking);
+    setThread(nextThread);
+    setError(null);
+    setChatError(null);
+    await chatService.markConversationAsRead(nextThread.id).catch(() => undefined);
+  }, [bookingId]);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadBookingConversation() {
+    void (async () => {
       try {
-        const [nextBooking, nextThread] = await Promise.all([
-          bookingService.getBookingById(bookingId),
-          chatService.getBookingConversation(bookingId)
-        ]);
-
-        if (isMounted) {
-          setBooking(nextBooking);
-          setThread(nextThread);
-          setError(null);
-        }
+        await loadBookingConversation();
       } catch (loadError) {
         if (isMounted) {
-          setError(getErrorMessage(loadError));
+          setError(getErrorMessage(loadError, "Something went wrong while loading this booking."));
         }
       } finally {
         if (isMounted) {
           setIsLoading(false);
         }
       }
-    }
-
-    void loadBookingConversation();
-    const intervalId = window.setInterval(() => {
-      void loadBookingConversation();
-    }, 10000);
+    })();
 
     return () => {
       isMounted = false;
-      window.clearInterval(intervalId);
     };
-  }, [bookingId]);
+  }, [loadBookingConversation]);
 
-  async function handleSend(messageText: string) {
+  useEffect(() => {
+    if (!conversationId || !otherParticipantId || !currentUserId) {
+      return undefined;
+    }
+
+    const controller = chatService.subscribeToConversationRealtime({
+      conversationId,
+      presenceUserIds: [otherParticipantId],
+      onMessageChange: () => {
+        void refreshThread(true).catch((messageError) => {
+          setChatError(getErrorMessage(messageError, "Something went wrong while refreshing chat."));
+        });
+      },
+      onPresenceChange: (presence) => {
+        setThread((currentThread) =>
+          currentThread && currentThread.id === conversationId
+            ? {
+                ...currentThread,
+                otherParticipantIsOnline: presence.isOnline,
+                otherParticipantLastSeen: presence.lastSeen
+              }
+            : currentThread
+        );
+      },
+      onTypingChange: (typingState) => {
+        if (typingState.userId !== otherParticipantId) {
+          return;
+        }
+
+        setThread((currentThread) =>
+          currentThread && currentThread.id === conversationId
+            ? {
+                ...currentThread,
+                typingUserId: typingState.isTyping ? typingState.userId : null
+              }
+            : currentThread
+        );
+      }
+    });
+
+    realtimeControllerRef.current = controller;
+
+    return () => {
+      void controller.sendTyping({
+        userId: currentUserId,
+        isTyping: false
+      }).catch(() => undefined);
+
+      void controller.unsubscribe();
+
+      if (realtimeControllerRef.current === controller) {
+        realtimeControllerRef.current = null;
+      }
+    };
+  }, [conversationId, currentUserId, otherParticipantId, refreshThread]);
+
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToast(null);
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
+
+  async function handleSend(content: string) {
+    if (!thread || !user) {
+      return;
+    }
+
+    const clientMessageId = buildClientMessageId();
+    const optimisticMessage: ChatMessageRecord = {
+      id: `optimistic:${clientMessageId}`,
+      conversationId: thread.id,
+      senderId: user.id,
+      receiverId: thread.otherParticipant.id,
+      senderName: user.fullName,
+      senderRole: user.role,
+      content,
+      originalContent: content,
+      displayContent: content,
+      clientMessageId,
+      status: MessageStatus.SENDING,
+      isDeleted: false,
+      isDeletedBySender: false,
+      isDeletedByReceiver: false,
+      deletedByUserId: null,
+      deletedByRole: null,
+      deletedLabel: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isOwnMessage: true,
+      isOptimistic: true
+    };
+
+    setThread((currentThread) =>
+      currentThread
+        ? {
+            ...currentThread,
+            messages: mergeChatMessages(currentThread.messages, [optimisticMessage]),
+            typingUserId: null
+          }
+        : currentThread
+    );
     setIsSending(true);
-    setSendError(null);
+    setChatError(null);
 
     try {
-      await chatService.sendBookingMessage(bookingId, messageText);
-      const nextThread = await chatService.getBookingConversation(bookingId);
-      setThread(nextThread);
-    } catch (sendMessageError) {
-      setSendError(getErrorMessage(sendMessageError));
+      const savedMessage = await chatService.sendBookingMessage(bookingId, {
+        content,
+        clientMessageId
+      });
+
+      setThread((currentThread) =>
+        currentThread
+          ? {
+              ...currentThread,
+              messages: mergeChatMessages(currentThread.messages, [savedMessage])
+            }
+          : currentThread
+      );
+    } catch (sendError) {
+      setThread((currentThread) =>
+        currentThread
+          ? {
+              ...currentThread,
+              messages: currentThread.messages.filter((message) => message.id !== optimisticMessage.id)
+            }
+          : currentThread
+      );
+      setChatError(getErrorMessage(sendError, "Unable to send the message."));
     } finally {
       setIsSending(false);
     }
+  }
+
+  async function handleDeleteMessage(messageId: string) {
+    try {
+      const deletedMessage = await chatService.deleteMessage(messageId);
+      setThread((currentThread) =>
+        currentThread
+          ? {
+              ...currentThread,
+              messages: mergeChatMessages(currentThread.messages, [deletedMessage])
+            }
+          : currentThread
+      );
+    } catch (deleteError) {
+      setToast({
+        tone: "error",
+        message: getErrorMessage(deleteError, "Unable to delete this message.")
+      });
+    }
+  }
+
+  async function handleLoadOlderMessages() {
+    if (!thread?.oldestMessageCursor) {
+      return;
+    }
+
+    setIsLoadingOlder(true);
+
+    try {
+      const messagePage = await chatService.getConversationMessages(thread.id, {
+        before: thread.oldestMessageCursor
+      });
+      setThread((currentThread) => (currentThread ? prependMessagePage(currentThread, messagePage) : currentThread));
+    } catch (loadOlderError) {
+      setToast({
+        tone: "error",
+        message: getErrorMessage(loadOlderError, "Unable to load earlier messages.")
+      });
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }
+
+  async function handleTypingChange(isTyping: boolean) {
+    if (!user || !realtimeControllerRef.current) {
+      return;
+    }
+
+    await realtimeControllerRef.current.sendTyping({
+      userId: user.id,
+      isTyping
+    });
+  }
+
+  function scrollToChat() {
+    document.getElementById("booking-chat-section")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
   }
 
   if (isLoading) {
@@ -115,8 +336,13 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
     );
   }
 
+  const typingLabel =
+    thread.typingUserId === thread.otherParticipant.id ? `${getFirstName(thread.otherParticipant.fullName)} typing...` : null;
+
   return (
     <div className="space-y-3">
+      {toast ? <ToastMessage tone={toast.tone} message={toast.message} /> : null}
+
       <Card>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -125,6 +351,7 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
               <p className="text-xs text-muted-foreground">
                 {[booking.listing.areaName, booking.listing.townName, booking.listing.countyName].filter(Boolean).join(", ")}
               </p>
+              <p className="text-sm font-semibold text-foreground">{formatCurrency(booking.listing.price)}</p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <PaymentStatusBadge status={booking.status} />
@@ -135,13 +362,17 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
           <p className="text-xs leading-5 text-muted-foreground">{booking.listing.description}</p>
 
           <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="md" onClick={scrollToChat}>
+              Chat
+            </Button>
+            <CallLandlordButton phone={booking.listing.landlordPhone} />
             {booking.paymentSummary.canPayRent ? (
               <Link href={`/bookings/${booking.id}/rent`} className={buttonVariants({ size: "md" })}>
                 Pay Rent
               </Link>
             ) : null}
             <Link href={`/listing/${booking.listing.id}`} className={cn(buttonVariants({ variant: "outline", size: "md" }))}>
-              View Public Listing
+              View Listing
             </Link>
           </div>
         </CardContent>
@@ -163,7 +394,24 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
         </CardContent>
       </Card>
 
-      <ChatThreadPanel thread={thread} onSend={handleSend} isSending={isSending} error={sendError} />
+      <div id="booking-chat-section">
+        <ChatThreadPanel
+          thread={thread}
+          viewer="tenant"
+          title={booking.listing.landlordName ?? "Landlord"}
+          subtitle={booking.listing.title}
+          statusLine={formatPresenceLabel(thread.otherParticipantIsOnline, thread.otherParticipantLastSeen)}
+          typingLabel={typingLabel}
+          headerAction={<CallLandlordButton phone={booking.listing.landlordPhone} variant="icon" />}
+          isSending={isSending}
+          isLoadingOlder={isLoadingOlder}
+          error={chatError}
+          onSend={handleSend}
+          onDeleteMessage={handleDeleteMessage}
+          onLoadOlder={handleLoadOlderMessages}
+          onTypingChange={handleTypingChange}
+        />
+      </div>
     </div>
   );
 }

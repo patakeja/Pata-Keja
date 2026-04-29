@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LocationPreferenceFields } from "@/components/features/location/location-preference-fields";
 import { authService, getRoleHomePath, updateProfile } from "@/lib/auth";
 import { useAuthStore } from "@/store";
 import { IdentityProvider } from "@/types";
@@ -25,6 +26,8 @@ export function OnboardingForm() {
   const { status, user, refreshAuthState } = useAuthStore();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [countyId, setCountyId] = useState("");
+  const [townId, setTownId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -32,6 +35,8 @@ export function OnboardingForm() {
     if (user) {
       setFullName(user.fullName);
       setPhone(user.phone ?? "");
+      setCountyId(user.countyId ? String(user.countyId) : "");
+      setTownId(user.townId ? String(user.townId) : "");
     }
   }, [user]);
 
@@ -49,7 +54,9 @@ export function OnboardingForm() {
     try {
       const updatedUser = await updateProfile({
         fullName,
-        phone
+        phone,
+        countyId: countyId ? Number.parseInt(countyId, 10) : null,
+        townId: townId ? Number.parseInt(townId, 10) : null
       });
 
       await refreshAuthState();
@@ -116,6 +123,16 @@ export function OnboardingForm() {
             onChange={(event) => setPhone(event.target.value)}
           />
         </div>
+        <LocationPreferenceFields
+          countyId={countyId}
+          townId={townId}
+          onCountyChange={(value) => {
+            setCountyId(value);
+            setTownId("");
+          }}
+          onTownChange={setTownId}
+          disabled={isSubmitting}
+        />
         {error ? <p className="text-xs text-rose-700">{error}</p> : null}
         <Button className="w-full" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : "Save & Continue"}

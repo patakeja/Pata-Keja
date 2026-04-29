@@ -6,4 +6,5 @@ export * from "./common";
 export * from "./database";
 export * from "./landlord";
 export * from "./listing";
+export * from "./location";
 export * from "./payment";

@@ -87,6 +87,7 @@ export type BookingDetail = UserBooking & {
     imagePaths: string[];
     imageUrls: string[];
     landlordName: string | null;
+    landlordPhone: string | null;
   };
 };
 

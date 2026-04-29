@@ -1,5 +1,6 @@
 import type { UserRole } from "./auth";
 import type { BookingStatus } from "./booking";
+import type { MessageStatus } from "./chat";
 import type { RentalSource } from "./landlord";
 import type { HouseType, ListingType } from "./listing";
 import type { PaymentMethod, PaymentStatus, PaymentType } from "./payment";
@@ -24,6 +25,8 @@ export type Database = {
           email: string;
           full_name: string;
           phone: string | null;
+          county_id: number | null;
+          town_id: number | null;
           role: PersistedUserRole;
           commission_percentage: number;
           created_at: string;
@@ -34,6 +37,8 @@ export type Database = {
           email: string;
           full_name: string;
           phone?: string | null;
+          county_id?: number | null;
+          town_id?: number | null;
           role?: PersistedUserRole;
           commission_percentage?: number;
           created_at?: string;
@@ -44,12 +49,29 @@ export type Database = {
           email?: string;
           full_name?: string;
           phone?: string | null;
+          county_id?: number | null;
+          town_id?: number | null;
           role?: PersistedUserRole;
           commission_percentage?: number;
           created_at?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "users_county_id_fkey";
+            columns: ["county_id"];
+            isOneToOne: false;
+            referencedRelation: "counties";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "users_county_town_consistency_fk";
+            columns: ["county_id", "town_id"];
+            isOneToOne: false;
+            referencedRelation: "towns";
+            referencedColumns: ["county_id", "id"];
+          }
+        ];
       };
       counties: {
         Row: {
@@ -495,22 +517,49 @@ export type Database = {
           id: string;
           conversation_id: string;
           sender_id: string;
-          message_text: string;
+          receiver_id: string;
+          content: string;
+          original_content: string;
+          status: MessageStatus;
+          client_message_id: string | null;
+          is_deleted_by_sender: boolean;
+          is_deleted_by_receiver: boolean;
+          deleted_by_user_id: string | null;
+          deleted_at: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
           conversation_id: string;
           sender_id: string;
-          message_text: string;
+          receiver_id: string;
+          content: string;
+          original_content?: string;
+          status?: MessageStatus;
+          client_message_id?: string | null;
+          is_deleted_by_sender?: boolean;
+          is_deleted_by_receiver?: boolean;
+          deleted_by_user_id?: string | null;
+          deleted_at?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
           conversation_id?: string;
           sender_id?: string;
-          message_text?: string;
+          receiver_id?: string;
+          content?: string;
+          original_content?: string;
+          status?: MessageStatus;
+          client_message_id?: string | null;
+          is_deleted_by_sender?: boolean;
+          is_deleted_by_receiver?: boolean;
+          deleted_by_user_id?: string | null;
+          deleted_at?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Relationships: [
           {
@@ -524,6 +573,85 @@ export type Database = {
             foreignKeyName: "messages_sender_id_fkey";
             columns: ["sender_id"];
             isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "messages_receiver_id_fkey";
+            columns: ["receiver_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "messages_deleted_by_user_id_fkey";
+            columns: ["deleted_by_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      message_reads: {
+        Row: {
+          id: string;
+          message_id: string;
+          read_by_user_id: string;
+          read_at: string;
+        };
+        Insert: {
+          id?: string;
+          message_id: string;
+          read_by_user_id: string;
+          read_at?: string;
+        };
+        Update: {
+          id?: string;
+          message_id?: string;
+          read_by_user_id?: string;
+          read_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "message_reads_message_id_fkey";
+            columns: ["message_id"];
+            isOneToOne: false;
+            referencedRelation: "messages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "message_reads_read_by_user_id_fkey";
+            columns: ["read_by_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      user_presence: {
+        Row: {
+          user_id: string;
+          is_online: boolean;
+          last_seen: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          is_online?: boolean;
+          last_seen?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          is_online?: boolean;
+          last_seen?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_presence_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
             referencedRelation: "users";
             referencedColumns: ["id"];
           }

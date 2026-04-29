@@ -1,16 +1,22 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 
+import { CHAT_MESSAGE_PAGE_SIZE } from "@/config/chat";
 import { AuthService } from "@/services/auth/auth.service";
 import { ServiceError } from "@/services/shared/service-error";
 import type { Database } from "@/types/database";
 import {
   BookingStatus,
+  MessageStatus,
   ServiceErrorCode,
   UserRole,
+  type ChatMessagePage,
   type ChatMessageRecord,
   type ChatParticipant,
   type ConversationListItem,
-  type ConversationThread
+  type ConversationThread,
+  type SendMessageInput,
+  type TypingState,
+  type UserPresenceRecord
 } from "@/types";
 
 type ServiceClient = SupabaseClient<Database>;
@@ -18,21 +24,47 @@ type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
 type ConversationRow = Database["public"]["Tables"]["conversations"]["Row"];
 type ListingRow = Database["public"]["Tables"]["listings"]["Row"];
 type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
+type PresenceRow = Database["public"]["Tables"]["user_presence"]["Row"];
 type UserRow = Database["public"]["Tables"]["users"]["Row"];
-type ConversationMessageRow = MessageRow & {
-  sender: Pick<UserRow, "id" | "full_name" | "role"> | null;
-};
-type ConversationQueryRow = ConversationRow & {
+
+type ConversationMetaRow = ConversationRow & {
   booking: (Pick<BookingRow, "id" | "status" | "expires_at"> & {
-    listing: (Pick<ListingRow, "id" | "title" | "maps_link" | "latitude" | "longitude"> & {
+    listing: (Pick<
+      ListingRow,
+      | "id"
+      | "title"
+      | "price"
+      | "maps_link"
+      | "latitude"
+      | "longitude"
+      | "deposit_amount"
+      | "available_from"
+    > & {
       area: { name: string } | null;
       town: { name: string } | null;
       county: { name: string } | null;
     }) | null;
   }) | null;
-  tenant: Pick<UserRow, "id" | "full_name" | "role"> | null;
-  landlord: Pick<UserRow, "id" | "full_name" | "role"> | null;
-  messages: ConversationMessageRow[] | null;
+  tenant: Pick<UserRow, "id" | "full_name" | "role" | "phone"> | null;
+  landlord: Pick<UserRow, "id" | "full_name" | "role" | "phone"> | null;
+};
+
+type MessageQueryRow = MessageRow & {
+  sender: Pick<UserRow, "id" | "full_name" | "role" | "phone"> | null;
+  deletedBy: Pick<UserRow, "id" | "full_name" | "role" | "phone"> | null;
+};
+
+type ConversationRealtimeHandlers = {
+  conversationId: string;
+  presenceUserIds?: string[];
+  onMessageChange?: () => void;
+  onPresenceChange?: (presence: UserPresenceRecord) => void;
+  onTypingChange?: (typingState: TypingState) => void;
+};
+
+type ConversationRealtimeController = {
+  unsubscribe: () => Promise<void>;
+  sendTyping: (payload: { userId: string; isTyping: boolean }) => Promise<void>;
 };
 
 export class ChatService {
@@ -51,7 +83,11 @@ export class ChatService {
       .maybeSingle();
 
     if (existingConversationError) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to verify the booking conversation.", existingConversationError);
+      throw new ServiceError(
+        ServiceErrorCode.DATABASE_ERROR,
+        "Unable to verify the booking conversation.",
+        existingConversationError
+      );
     }
 
     if (existingConversation) {
@@ -70,6 +106,7 @@ export class ChatService {
       .select(
         `
           id,
+          status,
           listing_id,
           user_id,
           listing:listings!bookings_listing_id_fkey(
@@ -82,12 +119,18 @@ export class ChatService {
       .maybeSingle();
 
     if (bookingError) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load the booking for chat setup.", bookingError);
+      throw new ServiceError(
+        ServiceErrorCode.DATABASE_ERROR,
+        "Unable to load the booking for chat setup.",
+        bookingError
+      );
     }
 
     if (!booking || !booking.listing) {
       throw new ServiceError(ServiceErrorCode.NOT_FOUND, "The booking does not exist for chat setup.");
     }
+
+    this.assertBookingChatStatus(booking.status);
 
     const { data: createdConversation, error: createError } = await supabase
       .from("conversations")
@@ -101,7 +144,11 @@ export class ChatService {
       .single();
 
     if (createError) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to create the booking conversation.", createError);
+      throw new ServiceError(
+        ServiceErrorCode.DATABASE_ERROR,
+        "Unable to create the booking conversation.",
+        createError
+      );
     }
 
     await this.ensureConversationParticipants(
@@ -114,25 +161,67 @@ export class ChatService {
     return createdConversation.id;
   }
 
-  async getBookingConversation(bookingId: string): Promise<ConversationThread> {
+  async getBookingConversation(
+    bookingId: string,
+    options?: { before?: string | null; limit?: number }
+  ): Promise<ConversationThread> {
     const supabase = this.clientFactory();
     const actor = await this.authService.requireCurrentUser(supabase);
     const conversationId = await this.ensureConversationForBooking(bookingId, supabase);
-    const row = await this.getConversationRowById(supabase, conversationId);
 
-    this.assertViewerCanAccess(actor.id, actor.role, row);
-
-    return this.mapConversationThread(row, actor.id, actor.role);
+    return this.getConversationThread(conversationId, options, supabase, actor.id, actor.role);
   }
 
-  async getConversationThread(conversationId: string): Promise<ConversationThread> {
+  async getConversationThread(
+    conversationId: string,
+    options?: { before?: string | null; limit?: number },
+    client?: ServiceClient,
+    actorIdOverride?: string,
+    actorRoleOverride?: UserRole
+  ): Promise<ConversationThread> {
+    const supabase = this.resolveClient(client);
+    const actor =
+      actorIdOverride && actorRoleOverride
+        ? { id: actorIdOverride, role: actorRoleOverride }
+        : await this.authService.requireCurrentUser(supabase);
+    const metaRow = await this.getConversationMetaById(supabase, conversationId);
+
+    this.assertViewerCanAccess(actor.id, actor.role, metaRow);
+
+    if (actor.role !== UserRole.ADMIN) {
+      this.assertBookingChatStatus(metaRow.booking?.status);
+    }
+
+    const messagePage = await this.getConversationMessagesPage(
+      supabase,
+      conversationId,
+      actor.id,
+      actor.role,
+      options
+    );
+    const otherParticipant = this.getOtherParticipant(metaRow, actor.id, actor.role);
+    const presenceMap = await this.getPresenceMap(supabase, [otherParticipant.id]);
+    const otherParticipantPresence =
+      presenceMap[otherParticipant.id] ?? this.createOfflinePresence(otherParticipant.id);
+
+    return this.mapConversationThread(metaRow, messagePage, otherParticipantPresence, actor.id, actor.role);
+  }
+
+  async getConversationMessages(
+    conversationId: string,
+    options?: { before?: string | null; limit?: number }
+  ): Promise<ChatMessagePage> {
     const supabase = this.clientFactory();
     const actor = await this.authService.requireCurrentUser(supabase);
-    const row = await this.getConversationRowById(supabase, conversationId);
+    const metaRow = await this.getConversationMetaById(supabase, conversationId);
 
-    this.assertViewerCanAccess(actor.id, actor.role, row);
+    this.assertViewerCanAccess(actor.id, actor.role, metaRow);
 
-    return this.mapConversationThread(row, actor.id, actor.role);
+    if (actor.role !== UserRole.ADMIN) {
+      this.assertBookingChatStatus(metaRow.booking?.status);
+    }
+
+    return this.getConversationMessagesPage(supabase, conversationId, actor.id, actor.role, options);
   }
 
   async getLandlordConversations(): Promise<ConversationListItem[]> {
@@ -140,7 +229,7 @@ export class ChatService {
     const actor = await this.authService.requireRole([UserRole.LANDLORD], supabase);
     const { data, error } = await supabase
       .from("conversations")
-      .select(this.conversationSelect())
+      .select(this.conversationMetaSelect())
       .eq("landlord_id", actor.id)
       .order("updated_at", { ascending: false });
 
@@ -148,7 +237,12 @@ export class ChatService {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load landlord conversations.", error);
     }
 
-    return (data ?? []).map((row) => this.mapConversationListItem(row as unknown as ConversationQueryRow, actor.id, actor.role));
+    return this.mapConversationList(
+      supabase,
+      (data ?? []) as unknown as ConversationMetaRow[],
+      actor.id,
+      actor.role
+    );
   }
 
   async getAdminConversations(): Promise<ConversationListItem[]> {
@@ -156,67 +250,337 @@ export class ChatService {
     const actor = await this.authService.requireRole([UserRole.ADMIN], supabase);
     const { data, error } = await supabase
       .from("conversations")
-      .select(this.conversationSelect())
+      .select(this.conversationMetaSelect())
       .order("updated_at", { ascending: false });
 
     if (error) {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load admin conversations.", error);
     }
 
-    return (data ?? []).map((row) => this.mapConversationListItem(row as unknown as ConversationQueryRow, actor.id, actor.role));
+    return this.mapConversationList(
+      supabase,
+      (data ?? []) as unknown as ConversationMetaRow[],
+      actor.id,
+      actor.role
+    );
   }
 
-  async sendMessage(conversationId: string, messageText: string): Promise<ChatMessageRecord> {
+  async sendMessage(conversationId: string, input: SendMessageInput): Promise<ChatMessageRecord> {
     const supabase = this.clientFactory();
     const actor = await this.authService.requireCurrentUser(supabase);
-    const normalizedMessage = messageText.trim();
+    const normalizedContent = input.content.trim();
 
-    if (!normalizedMessage) {
-      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Message text cannot be blank.");
+    if (!normalizedContent) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Message content cannot be blank.");
+    }
+
+    if (!input.clientMessageId.trim()) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "A client message ID is required.");
     }
 
     if (actor.role === UserRole.ADMIN) {
       throw new ServiceError(ServiceErrorCode.FORBIDDEN, "Admins can review chats but cannot send messages.");
     }
 
-    const row = await this.getConversationRowById(supabase, conversationId);
-    this.assertParticipantCanSend(actor.id, row);
+    const metaRow = await this.getConversationMetaById(supabase, conversationId);
+    this.assertParticipantCanSend(actor.id, metaRow);
+    this.assertBookingChatStatus(metaRow.booking?.status);
+
+    const receiver = actor.id === metaRow.tenant_id ? metaRow.landlord : metaRow.tenant;
+
+    if (!receiver) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Conversation receiver details are missing.");
+    }
+
+    const receiverPresence =
+      (await this.getPresenceMap(supabase, [receiver.id]))[receiver.id] ?? this.createOfflinePresence(receiver.id);
+    const nextStatus = receiverPresence.isOnline ? MessageStatus.DELIVERED : MessageStatus.SENT;
 
     const { data, error } = await supabase
       .from("messages")
       .insert({
         conversation_id: conversationId,
         sender_id: actor.id,
-        message_text: normalizedMessage
+        receiver_id: receiver.id,
+        content: normalizedContent,
+        original_content: normalizedContent,
+        status: nextStatus,
+        client_message_id: input.clientMessageId
       })
-      .select(
-        `
-          id,
-          conversation_id,
-          sender_id,
-          message_text,
-          created_at,
-          sender:users!messages_sender_id_fkey(
-            id,
-            full_name,
-            role
-          )
-        `
-      )
+      .select(this.messageSelect())
       .single();
 
     if (error) {
+      const duplicateMessage = await this.findExistingMessageByClientMessageId(
+        supabase,
+        conversationId,
+        input.clientMessageId
+      );
+
+      if (duplicateMessage) {
+        return this.mapMessageRecord(duplicateMessage, actor.id, actor.role);
+      }
+
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to send the message.", error);
     }
 
-    return this.mapMessageRecord(data as ConversationMessageRow, actor.id);
+    return this.mapMessageRecord(data as unknown as MessageQueryRow, actor.id, actor.role);
   }
 
-  async sendBookingMessage(bookingId: string, messageText: string): Promise<ChatMessageRecord> {
+  async sendBookingMessage(bookingId: string, input: SendMessageInput): Promise<ChatMessageRecord> {
     const supabase = this.clientFactory();
     const conversationId = await this.ensureConversationForBooking(bookingId, supabase);
 
-    return this.sendMessage(conversationId, messageText);
+    return this.sendMessage(conversationId, input);
+  }
+
+  async deleteMessage(messageId: string): Promise<ChatMessageRecord> {
+    const supabase = this.clientFactory();
+    const actor = await this.authService.requireCurrentUser(supabase);
+    const { data, error } = await supabase
+      .from("messages")
+      .select(
+        `
+          ${this.messageSelect()},
+          conversation:conversations!messages_conversation_id_fkey(
+            id,
+            tenant_id,
+            landlord_id,
+            booking_id
+          )
+        `
+      )
+      .eq("id", messageId)
+      .maybeSingle();
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load the message.", error);
+    }
+
+    if (!data) {
+      throw new ServiceError(ServiceErrorCode.NOT_FOUND, "The requested message does not exist.");
+    }
+
+    const row = data as unknown as MessageQueryRow & {
+      conversation: Pick<ConversationRow, "id" | "tenant_id" | "landlord_id" | "booking_id"> | null;
+    };
+
+    if (!row.conversation) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "The message conversation is missing.");
+    }
+
+    if (![row.sender_id, row.receiver_id].includes(actor.id) && actor.role !== UserRole.ADMIN) {
+      throw new ServiceError(ServiceErrorCode.FORBIDDEN, "You do not have access to delete this message.");
+    }
+
+    const { data: updatedRow, error: updateError } = await supabase
+      .from("messages")
+      .update({
+        is_deleted_by_sender: actor.id === row.sender_id ? true : row.is_deleted_by_sender,
+        is_deleted_by_receiver: actor.id === row.receiver_id ? true : row.is_deleted_by_receiver,
+        deleted_by_user_id: actor.id,
+        deleted_at: new Date().toISOString()
+      })
+      .eq("id", messageId)
+      .select(this.messageSelect())
+      .single();
+
+    if (updateError) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to delete the message.", updateError);
+    }
+
+    return this.mapMessageRecord(updatedRow as unknown as MessageQueryRow, actor.id, actor.role);
+  }
+
+  async markConversationAsRead(conversationId: string): Promise<number> {
+    const supabase = this.clientFactory();
+    const actor = await this.authService.requireCurrentUser(supabase);
+    const metaRow = await this.getConversationMetaById(supabase, conversationId);
+
+    this.assertViewerCanAccess(actor.id, actor.role, metaRow);
+
+    if (actor.role === UserRole.ADMIN) {
+      return 0;
+    }
+
+    this.assertBookingChatStatus(metaRow.booking?.status);
+
+    const { data: unreadMessages, error: unreadMessagesError } = await supabase
+      .from("messages")
+      .select("id")
+      .eq("conversation_id", conversationId)
+      .eq("receiver_id", actor.id)
+      .in("status", [MessageStatus.SENT, MessageStatus.DELIVERED]);
+
+    if (unreadMessagesError) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load unread messages.", unreadMessagesError);
+    }
+
+    const messageIds = (unreadMessages ?? []).map((message) => message.id);
+
+    if (messageIds.length === 0) {
+      return 0;
+    }
+
+    const nowIso = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from("messages")
+      .update({
+        status: MessageStatus.READ
+      })
+      .in("id", messageIds);
+
+    if (updateError) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to mark messages as read.", updateError);
+    }
+
+    const { error: readInsertError } = await supabase.from("message_reads").upsert(
+      messageIds.map((messageId) => ({
+        message_id: messageId,
+        read_by_user_id: actor.id,
+        read_at: nowIso
+      })),
+      {
+        onConflict: "message_id,read_by_user_id"
+      }
+    );
+
+    if (readInsertError) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to record message reads.", readInsertError);
+    }
+
+    return messageIds.length;
+  }
+
+  async setUserPresence(isOnline: boolean): Promise<UserPresenceRecord> {
+    const supabase = this.clientFactory();
+    const actor = await this.authService.requireCurrentUser(supabase);
+    const nowIso = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("user_presence")
+      .upsert(
+        {
+          user_id: actor.id,
+          is_online: isOnline,
+          last_seen: nowIso
+        },
+        {
+          onConflict: "user_id"
+        }
+      )
+      .select("*")
+      .single();
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to update user presence.", error);
+    }
+
+    if (isOnline) {
+      await this.markIncomingMessagesDelivered(actor.id, supabase);
+    }
+
+    return this.mapPresenceRecord(data);
+  }
+
+  subscribeToConversationRealtime({
+    conversationId,
+    presenceUserIds = [],
+    onMessageChange,
+    onPresenceChange,
+    onTypingChange
+  }: ConversationRealtimeHandlers): ConversationRealtimeController {
+    const supabase = this.clientFactory();
+    const channel = supabase.channel(`chat-room:${conversationId}`);
+
+    channel.on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "messages",
+        filter: `conversation_id=eq.${conversationId}`
+      },
+      () => {
+        onMessageChange?.();
+      }
+    );
+
+    if (presenceUserIds.length > 0) {
+      channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "user_presence"
+        },
+        (payload) => {
+          const nextPresence = payload.new as PresenceRow;
+
+          if (nextPresence && presenceUserIds.includes(nextPresence.user_id)) {
+            onPresenceChange?.(this.mapPresenceRecord(nextPresence));
+          }
+        }
+      );
+    }
+
+    channel.on("broadcast", { event: "typing" }, (payload) => {
+      const nextTypingState = payload.payload as TypingState & { conversationId?: string };
+
+      if (nextTypingState?.conversationId !== conversationId) {
+        return;
+      }
+
+      onTypingChange?.({
+        userId: nextTypingState.userId ?? null,
+        isTyping: Boolean(nextTypingState.isTyping),
+        startedAt: nextTypingState.startedAt ?? new Date().toISOString()
+      });
+    });
+
+    void channel.subscribe();
+
+    return {
+      unsubscribe: async () => {
+        await supabase.removeChannel(channel);
+      },
+      sendTyping: async ({ userId, isTyping }) => {
+        await channel.send({
+          type: "broadcast",
+          event: "typing",
+          payload: {
+            conversationId,
+            userId,
+            isTyping,
+            startedAt: new Date().toISOString()
+          }
+        });
+      }
+    };
+  }
+
+  subscribeToMessageFeed(onChange: () => void) {
+    const supabase = this.clientFactory();
+    const channel: RealtimeChannel = supabase
+      .channel(`message-feed:${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages"
+        },
+        () => {
+          onChange();
+        }
+      );
+
+    void channel.subscribe();
+
+    return {
+      unsubscribe: async () => {
+        await supabase.removeChannel(channel);
+      }
+    };
   }
 
   private async ensureConversationParticipants(
@@ -240,10 +604,10 @@ export class ChatService {
     }
   }
 
-  private async getConversationRowById(supabase: ServiceClient, conversationId: string) {
+  private async getConversationMetaById(supabase: ServiceClient, conversationId: string) {
     const { data, error } = await supabase
       .from("conversations")
-      .select(this.conversationSelect())
+      .select(this.conversationMetaSelect())
       .eq("id", conversationId)
       .maybeSingle();
 
@@ -255,10 +619,116 @@ export class ChatService {
       throw new ServiceError(ServiceErrorCode.NOT_FOUND, "The requested conversation does not exist.");
     }
 
-    return data as unknown as ConversationQueryRow;
+    return data as unknown as ConversationMetaRow;
   }
 
-  private conversationSelect() {
+  private async getConversationMessagesPage(
+    supabase: ServiceClient,
+    conversationId: string,
+    actorId: string,
+    actorRole: UserRole,
+    options?: { before?: string | null; limit?: number }
+  ): Promise<ChatMessagePage> {
+    const limit = options?.limit && options.limit > 0 ? options.limit : CHAT_MESSAGE_PAGE_SIZE;
+    let query = supabase
+      .from("messages")
+      .select(this.messageSelect())
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false })
+      .limit(limit + 1);
+
+    if (options?.before) {
+      query = query.lt("created_at", options.before);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load conversation messages.", error);
+    }
+
+    const rows = (data ?? []) as unknown as MessageQueryRow[];
+    const hasOlderMessages = rows.length > limit;
+    const pageRows = rows.slice(0, limit).reverse();
+    const messages = pageRows.map((row) => this.mapMessageRecord(row, actorId, actorRole));
+
+    return {
+      messages,
+      hasOlderMessages,
+      oldestMessageCursor: messages[0]?.createdAt ?? null
+    };
+  }
+
+  private async mapConversationList(
+    supabase: ServiceClient,
+    rows: ConversationMetaRow[],
+    actorId: string,
+    actorRole: UserRole
+  ): Promise<ConversationListItem[]> {
+    const conversationIds = rows.map((row) => row.id);
+    const metrics = await this.loadConversationMetrics(supabase, conversationIds, actorId, actorRole);
+    const presenceIds = rows.map((row) => this.getOtherParticipant(row, actorId, actorRole).id);
+    const presenceMap = await this.getPresenceMap(supabase, presenceIds);
+
+    return rows.map((row) => {
+      const otherParticipant = this.getOtherParticipant(row, actorId, actorRole);
+      const presence = presenceMap[otherParticipant.id] ?? this.createOfflinePresence(otherParticipant.id);
+      const lastMessage = metrics.lastMessageMap[row.id] ?? null;
+
+      return this.mapConversationListItem(row, {
+        actorId,
+        actorRole,
+        otherParticipantPresence: presence,
+        lastMessage,
+        unreadCount: metrics.unreadCountMap[row.id] ?? 0
+      });
+    });
+  }
+
+  private async loadConversationMetrics(
+    supabase: ServiceClient,
+    conversationIds: string[],
+    actorId: string,
+    actorRole: UserRole
+  ) {
+    if (conversationIds.length === 0) {
+      return {
+        lastMessageMap: {} as Record<string, ChatMessageRecord | null>,
+        unreadCountMap: {} as Record<string, number>
+      };
+    }
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select(this.messageSelect())
+      .in("conversation_id", conversationIds)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load chat metrics.", error);
+    }
+
+    const rows = (data ?? []) as unknown as MessageQueryRow[];
+    const lastMessageMap: Record<string, ChatMessageRecord | null> = {};
+    const unreadCountMap: Record<string, number> = {};
+
+    rows.forEach((row) => {
+      if (!(row.conversation_id in lastMessageMap)) {
+        lastMessageMap[row.conversation_id] = this.mapMessageRecord(row, actorId, actorRole);
+      }
+
+      if (row.receiver_id === actorId && row.status !== MessageStatus.READ) {
+        unreadCountMap[row.conversation_id] = (unreadCountMap[row.conversation_id] ?? 0) + 1;
+      }
+    });
+
+    return {
+      lastMessageMap,
+      unreadCountMap
+    };
+  }
+
+  private conversationMetaSelect() {
     return `
       id,
       booking_id,
@@ -274,9 +744,12 @@ export class ChatService {
         listing:listings!bookings_listing_id_fkey(
           id,
           title,
+          price,
           maps_link,
           latitude,
           longitude,
+          deposit_amount,
+          available_from,
           area:areas(name),
           town:towns(name),
           county:counties(name)
@@ -285,29 +758,249 @@ export class ChatService {
       tenant:users!conversations_tenant_id_fkey(
         id,
         full_name,
-        role
+        role,
+        phone
       ),
       landlord:users!conversations_landlord_id_fkey(
         id,
         full_name,
-        role
-      ),
-      messages:messages(
-        id,
-        conversation_id,
-        sender_id,
-        message_text,
-        created_at,
-        sender:users!messages_sender_id_fkey(
-          id,
-          full_name,
-          role
-        )
+        role,
+        phone
       )
     `;
   }
 
-  private assertViewerCanAccess(actorId: string, actorRole: UserRole, row: ConversationQueryRow) {
+  private messageSelect() {
+    return `
+      id,
+      conversation_id,
+      sender_id,
+      receiver_id,
+      content,
+      original_content,
+      status,
+      client_message_id,
+      is_deleted_by_sender,
+      is_deleted_by_receiver,
+      deleted_by_user_id,
+      deleted_at,
+      created_at,
+      updated_at,
+      sender:users!messages_sender_id_fkey(
+        id,
+        full_name,
+        role,
+        phone
+      ),
+      deletedBy:users!messages_deleted_by_user_id_fkey(
+        id,
+        full_name,
+        role,
+        phone
+      )
+    `;
+  }
+
+  private mapConversationThread(
+    row: ConversationMetaRow,
+    messagePage: ChatMessagePage,
+    presence: UserPresenceRecord,
+    actorId: string,
+    actorRole: UserRole
+  ): ConversationThread {
+    return {
+      ...this.mapConversationListItem(row, {
+        actorId,
+        actorRole,
+        otherParticipantPresence: presence,
+        lastMessage: messagePage.messages.at(-1) ?? null,
+        unreadCount: messagePage.messages.filter(
+          (message) => message.receiverId === actorId && message.status !== MessageStatus.READ
+        ).length
+      }),
+      bookingStatus: row.booking?.status ?? BookingStatus.ACTIVE,
+      bookingExpiresAt: row.booking?.expires_at ?? null,
+      areaLabel: this.buildAreaLabel(
+        row.booking?.listing?.area?.name ?? "",
+        row.booking?.listing?.town?.name ?? "",
+        row.booking?.listing?.county?.name ?? ""
+      ),
+      mapsLink: row.booking?.listing?.maps_link ?? null,
+      latitude: row.booking?.listing?.latitude ?? null,
+      longitude: row.booking?.listing?.longitude ?? null,
+      messages: messagePage.messages,
+      hasOlderMessages: messagePage.hasOlderMessages,
+      oldestMessageCursor: messagePage.oldestMessageCursor,
+      typingUserId: null
+    };
+  }
+
+  private mapConversationListItem(
+    row: ConversationMetaRow,
+    input: {
+      actorId: string;
+      actorRole: UserRole;
+      otherParticipantPresence: UserPresenceRecord;
+      lastMessage: ChatMessageRecord | null;
+      unreadCount: number;
+    }
+  ): ConversationListItem {
+    if (!row.booking?.listing || !row.tenant || !row.landlord) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Conversation data is incomplete.");
+    }
+
+    const otherParticipant = this.getOtherParticipant(row, input.actorId, input.actorRole);
+    const canSend =
+      input.actorRole !== UserRole.ADMIN &&
+      [row.tenant_id, row.landlord_id].includes(input.actorId) &&
+      [BookingStatus.ACTIVE, BookingStatus.COMPLETED].includes(row.booking.status);
+
+    return {
+      id: row.id,
+      bookingId: row.booking_id,
+      listingId: row.listing_id,
+      listingTitle: row.booking.listing.title,
+      tenant: this.mapParticipant(row.tenant),
+      landlord: this.mapParticipant(row.landlord),
+      otherParticipant,
+      otherParticipantIsOnline: input.otherParticipantPresence.isOnline,
+      otherParticipantLastSeen: input.otherParticipantPresence.lastSeen,
+      lastMessagePreview: input.lastMessage?.displayContent ?? null,
+      lastMessageAt: input.lastMessage?.createdAt ?? null,
+      updatedAt: row.updated_at,
+      unreadCount: input.unreadCount,
+      canSend,
+      isReadOnly: !canSend
+    };
+  }
+
+  private mapMessageRecord(row: MessageQueryRow, actorId: string, actorRole: UserRole): ChatMessageRecord {
+    if (!row.sender) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Message sender data is missing.");
+    }
+
+    const isDeleted = row.is_deleted_by_sender || row.is_deleted_by_receiver;
+    const deletedByRole = row.deletedBy?.role ?? null;
+    const deletedLabel = deletedByRole ? `Deleted by ${deletedByRole}` : isDeleted ? "Message deleted" : null;
+    const displayContent =
+      isDeleted && actorRole !== UserRole.ADMIN ? "This message was deleted" : row.original_content;
+
+    return {
+      id: row.id,
+      conversationId: row.conversation_id,
+      senderId: row.sender_id,
+      receiverId: row.receiver_id,
+      senderName: row.sender.full_name,
+      senderRole: row.sender.role,
+      content: row.content,
+      originalContent: row.original_content,
+      displayContent,
+      clientMessageId: row.client_message_id,
+      status: row.status,
+      isDeleted,
+      isDeletedBySender: row.is_deleted_by_sender,
+      isDeletedByReceiver: row.is_deleted_by_receiver,
+      deletedByUserId: row.deleted_by_user_id,
+      deletedByRole,
+      deletedLabel,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      isOwnMessage: row.sender_id === actorId
+    };
+  }
+
+  private mapParticipant(participant: Pick<UserRow, "id" | "full_name" | "role" | "phone">): ChatParticipant {
+    return {
+      id: participant.id,
+      fullName: participant.full_name,
+      role: participant.role,
+      phone: this.normalizePhone(participant.phone)
+    };
+  }
+
+  private mapPresenceRecord(row: PresenceRow): UserPresenceRecord {
+    return {
+      userId: row.user_id,
+      isOnline: row.is_online,
+      lastSeen: row.last_seen ?? null,
+      updatedAt: row.updated_at ?? null
+    };
+  }
+
+  private async getPresenceMap(supabase: ServiceClient, userIds: string[]) {
+    const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+
+    if (uniqueUserIds.length === 0) {
+      return {} as Record<string, UserPresenceRecord>;
+    }
+
+    const { data, error } = await supabase.from("user_presence").select("*").in("user_id", uniqueUserIds);
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load user presence.", error);
+    }
+
+    return (data ?? []).reduce<Record<string, UserPresenceRecord>>((accumulator, row) => {
+      accumulator[row.user_id] = this.mapPresenceRecord(row);
+      return accumulator;
+    }, {});
+  }
+
+  private createOfflinePresence(userId: string): UserPresenceRecord {
+    return {
+      userId,
+      isOnline: false,
+      lastSeen: null,
+      updatedAt: null
+    };
+  }
+
+  private getOtherParticipant(row: ConversationMetaRow, actorId: string, actorRole: UserRole) {
+    if (!row.tenant || !row.landlord) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Conversation participant data is missing.");
+    }
+
+    if (actorRole === UserRole.ADMIN) {
+      return this.mapParticipant(row.tenant);
+    }
+
+    return row.tenant_id === actorId ? this.mapParticipant(row.landlord) : this.mapParticipant(row.tenant);
+  }
+
+  private async findExistingMessageByClientMessageId(
+    supabase: ServiceClient,
+    conversationId: string,
+    clientMessageId: string
+  ) {
+    const { data, error } = await supabase
+      .from("messages")
+      .select(this.messageSelect())
+      .eq("conversation_id", conversationId)
+      .eq("client_message_id", clientMessageId)
+      .maybeSingle();
+
+    if (error) {
+      return null;
+    }
+
+    return data as unknown as MessageQueryRow | null;
+  }
+
+  private async markIncomingMessagesDelivered(userId: string, supabase: ServiceClient) {
+    const { error } = await supabase
+      .from("messages")
+      .update({
+        status: MessageStatus.DELIVERED
+      })
+      .eq("receiver_id", userId)
+      .eq("status", MessageStatus.SENT);
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to update delivered message states.", error);
+    }
+  }
+
+  private assertViewerCanAccess(actorId: string, actorRole: UserRole, row: ConversationMetaRow) {
     if (actorRole === UserRole.ADMIN) {
       return;
     }
@@ -317,84 +1010,37 @@ export class ChatService {
     }
   }
 
-  private assertParticipantCanSend(actorId: string, row: ConversationQueryRow) {
+  private assertParticipantCanSend(actorId: string, row: ConversationMetaRow) {
     if (row.tenant_id !== actorId && row.landlord_id !== actorId) {
       throw new ServiceError(ServiceErrorCode.FORBIDDEN, "Only booking participants can send messages.");
     }
   }
 
-  private mapConversationThread(row: ConversationQueryRow, actorId: string, actorRole: UserRole): ConversationThread {
-    const base = this.mapConversationListItem(row, actorId, actorRole);
-    const listing = row.booking?.listing;
-
-    return {
-      ...base,
-      bookingStatus: row.booking?.status ?? BookingStatus.ACTIVE,
-      bookingExpiresAt: row.booking?.expires_at ?? null,
-      areaLabel: this.buildAreaLabel(listing?.area?.name ?? "", listing?.town?.name ?? "", listing?.county?.name ?? ""),
-      mapsLink: listing?.maps_link ?? null,
-      latitude: listing?.latitude ?? null,
-      longitude: listing?.longitude ?? null,
-      messages: this.sortMessages(row.messages ?? []).map((message) => this.mapMessageRecord(message, actorId))
-    };
-  }
-
-  private mapConversationListItem(row: ConversationQueryRow, actorId: string, actorRole: UserRole): ConversationListItem {
-    if (!row.booking?.listing || !row.tenant || !row.landlord) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Conversation data is incomplete.");
+  private assertBookingChatStatus(status: BookingStatus | null | undefined) {
+    if (status !== BookingStatus.ACTIVE && status !== BookingStatus.COMPLETED) {
+      throw new ServiceError(
+        ServiceErrorCode.FORBIDDEN,
+        "Chat is only available for active or completed bookings."
+      );
     }
-
-    const lastMessage = this.sortMessages(row.messages ?? []).at(-1) ?? null;
-    const canSend = actorRole !== UserRole.ADMIN && (row.tenant_id === actorId || row.landlord_id === actorId);
-
-    return {
-      id: row.id,
-      bookingId: row.booking_id,
-      listingId: row.listing_id,
-      listingTitle: row.booking.listing.title,
-      tenant: this.mapParticipant(row.tenant),
-      landlord: this.mapParticipant(row.landlord),
-      lastMessageText: lastMessage?.message_text ?? null,
-      lastMessageAt: lastMessage?.created_at ?? null,
-      updatedAt: row.updated_at,
-      canSend,
-      isReadOnly: !canSend
-    };
-  }
-
-  private mapParticipant(participant: Pick<UserRow, "id" | "full_name" | "role">): ChatParticipant {
-    return {
-      id: participant.id,
-      fullName: participant.full_name,
-      role: participant.role
-    };
-  }
-
-  private mapMessageRecord(message: ConversationMessageRow, actorId: string): ChatMessageRecord {
-    if (!message.sender) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Conversation sender data is missing.");
-    }
-
-    return {
-      id: message.id,
-      conversationId: message.conversation_id,
-      senderId: message.sender_id,
-      senderName: message.sender.full_name,
-      senderRole: message.sender.role,
-      messageText: message.message_text,
-      createdAt: message.created_at,
-      isOwnMessage: message.sender_id === actorId
-    };
-  }
-
-  private sortMessages(messages: ConversationMessageRow[]) {
-    return messages
-      .slice()
-      .sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
   }
 
   private buildAreaLabel(areaName: string, townName: string, countyName: string) {
     return [areaName, townName, countyName].filter(Boolean).join(", ");
+  }
+
+  private normalizePhone(phone: string | null) {
+    if (!phone) {
+      return null;
+    }
+
+    const normalizedPhone = phone.trim();
+
+    if (!/^\+\d{8,15}$/.test(normalizedPhone)) {
+      return null;
+    }
+
+    return normalizedPhone;
   }
 
   private resolveClient(client?: ServiceClient) {

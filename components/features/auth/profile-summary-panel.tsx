@@ -11,6 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ToastMessage } from "@/components/ui/toast-message";
+import { LocationPreferenceFields } from "@/components/features/location/location-preference-fields";
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -34,6 +35,8 @@ export function ProfileSummaryPanel() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [countyId, setCountyId] = useState("");
+  const [townId, setTownId] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -50,6 +53,8 @@ export function ProfileSummaryPanel() {
     setFullName(user.fullName);
     setPhone(user.phone ?? "");
     setEmail(user.email);
+    setCountyId(user.countyId ? String(user.countyId) : "");
+    setTownId(user.townId ? String(user.townId) : "");
   }, [user]);
 
   if (status === "loading") {
@@ -82,7 +87,9 @@ export function ProfileSummaryPanel() {
     try {
       await updateProfile({
         fullName,
-        phone: phone.trim() || null
+        phone: phone.trim() || null,
+        countyId: countyId ? Number.parseInt(countyId, 10) : null,
+        townId: townId ? Number.parseInt(townId, 10) : null
       });
       await refreshAuthState();
       setToast({ tone: "success", message: "Profile updated successfully." });
@@ -146,6 +153,12 @@ export function ProfileSummaryPanel() {
           <div className="min-w-0 flex-1">
             <p className="truncate text-lg font-semibold">{user.fullName}</p>
             <p className="truncate text-sm text-primary-foreground/85">{user.email}</p>
+            {user.countyName ? (
+              <p className="truncate text-xs text-primary-foreground/75">
+                {user.townName ? `${user.townName}, ` : ""}
+                {user.countyName}
+              </p>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -188,6 +201,16 @@ export function ProfileSummaryPanel() {
                   placeholder="+2547..."
                 />
               </div>
+              <LocationPreferenceFields
+                countyId={countyId}
+                townId={townId}
+                onCountyChange={(value) => {
+                  setCountyId(value);
+                  setTownId("");
+                }}
+                onTownChange={setTownId}
+                disabled={isSavingProfile}
+              />
               <Button type="submit" disabled={isSavingProfile}>
                 {isSavingProfile ? "Saving..." : "Save Profile"}
               </Button>
