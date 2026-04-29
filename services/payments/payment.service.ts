@@ -141,7 +141,7 @@ export class PaymentService {
 
   async createDepositPayment(listingId: string, userId?: string): Promise<DepositPaymentBundle> {
     const client = this.resolveClient();
-    const actor = await this.authService.requireRole([UserRole.TENANT], client);
+    const actor = await this.authService.requireRole([UserRole.TENANT, UserRole.LANDLORD, UserRole.ADMIN], client);
     return this.createDepositPaymentForActor(listingId, actor, userId, client);
   }
 
@@ -188,7 +188,7 @@ export class PaymentService {
 
     const booking = existingBooking
       ? this.mapBookingRecord(existingBooking)
-      : await this.bookingService.createBooking(listingId, paymentUserId);
+      : await this.bookingService.createBookingForActor(listingId, actor, paymentUserId, client);
     const { data, error } = await client
       .from("payments")
       .insert({

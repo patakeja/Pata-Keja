@@ -13,6 +13,7 @@ import {
   PaymentType,
   ServiceErrorCode,
   UserRole,
+  type AuthenticatedUser,
   type BookingDetail,
   type BookingInterest,
   type BookingPolicy,
@@ -119,7 +120,22 @@ export class BookingService {
 
   async createBooking(listingId: string, userId?: string) {
     const client = this.clientFactory();
-    const actor = await this.authService.requireRole([UserRole.TENANT], client);
+    const actor = await this.authService.requireRole([UserRole.TENANT, UserRole.LANDLORD, UserRole.ADMIN], client);
+    return this.createBookingForActor(listingId, actor, userId, client);
+  }
+
+  async createBookingForActor(
+    listingId: string,
+    actor: AuthenticatedUser,
+    userId?: string,
+    clientOverride?: ServiceClient
+  ) {
+    const client = clientOverride ?? this.clientFactory();
+
+    if (![UserRole.TENANT, UserRole.LANDLORD, UserRole.ADMIN].includes(actor.role)) {
+      throw new ServiceError(ServiceErrorCode.FORBIDDEN, "You do not have permission to create a booking.");
+    }
+
     const bookingUserId = this.resolveBookingUserId(actor.id, userId);
     const listing = await this.getListingBookingConfig(client, listingId);
 
