@@ -107,7 +107,7 @@ export function LandlordHouseEditor({
 
   return (
     <div className="fixed inset-0 z-40 bg-black/30 p-3">
-      <div className="mx-auto flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-xl">
+      <div className="mx-auto flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <div>
             <h2 className="text-sm font-semibold text-foreground">Edit house</h2>
@@ -134,7 +134,7 @@ export function LandlordHouseEditor({
               <div className="space-y-1 md:col-span-2">
                 <label className="text-[11px] font-medium text-foreground">Basic info</label>
                 <textarea
-                  className="min-h-28 w-full rounded-md border border-input bg-white px-3 py-2 text-xs text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  className="min-h-28 w-full rounded-xl border border-input bg-white px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
                   value={formState.description}
                   onChange={(event) => updateField("description", event.target.value)}
                   disabled={isSaving}
@@ -226,7 +226,7 @@ export function LandlordHouseEditor({
                 />
               </div>
 
-              <label className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-foreground md:col-span-2">
+              <label className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs text-foreground md:col-span-2">
                 <input
                   type="checkbox"
                   checked={formState.isActive}
@@ -292,7 +292,7 @@ export function LandlordHouseEditor({
             ) : null}
 
             {house.needsImageRefresh ? (
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+              <p className="rounded-xl border border-accent/35 bg-accent/15 px-3 py-2 text-[11px] text-accent-foreground">
                 Consider updating images. This listing has gone a while without a gallery refresh.
               </p>
             ) : null}

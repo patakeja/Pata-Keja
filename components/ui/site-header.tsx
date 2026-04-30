@@ -8,6 +8,7 @@ import { getRoleHomePath } from "@/lib/auth";
 import { useAuthStore } from "@/store";
 import { UserRole } from "@/types";
 
+import { BrandLogo } from "./brand-logo";
 import { buttonVariants } from "./button";
 import { Input } from "./input";
 import { PageShell } from "./page-shell";
@@ -23,16 +24,17 @@ export function SiteHeader() {
     user?.role === UserRole.LANDLORD ? "Landlord Portal" : user?.role === UserRole.ADMIN ? "Admin Portal" : "Bookings";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur">
-      <PageShell className="flex flex-col gap-2 py-2 md:flex-row md:items-center md:gap-3">
-        <Link href={homeHref} className="flex min-w-0 items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            PK
+    <header className="sticky top-0 z-30 border-b border-border/70 bg-white/85 backdrop-blur-xl">
+      <PageShell className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:gap-4">
+        <Link href={homeHref} className="flex min-w-0 items-center gap-3">
+          <BrandLogo
+            className="shrink-0 justify-start"
+            imageClassName="h-9 md:h-10"
+            fallbackClassName="text-xl md:text-2xl"
+          />
+          <span className="hidden text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground sm:inline">
+            Find and book houses easily
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold tracking-tight text-foreground">Pata Keja</p>
-            <p className="truncate text-[11px] text-muted-foreground">Rent and short stay</p>
-          </div>
         </Link>
 
         {shouldShowPublicBrowse ? (
@@ -44,7 +46,7 @@ export function SiteHeader() {
               id="site-search"
               name="q"
               placeholder="Search by title or area"
-              className="w-full bg-white"
+              className="w-full"
             />
           </form>
         ) : (
@@ -53,7 +55,7 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-2">
           {status === "loading" ? (
-            <span className="rounded-md border border-border bg-white px-3 py-2 text-[11px] text-muted-foreground">
+            <span className="rounded-xl border border-border bg-white px-3 py-2 text-[11px] text-muted-foreground">
               Loading account...
             </span>
           ) : null}
@@ -75,10 +77,10 @@ export function SiteHeader() {
           {!shouldHideAccountActions && status === "unauthenticated" ? (
             <>
               <Link href="/login" className={buttonVariants({ variant: "outline", size: "md" })}>
-                Login
+                Sign in
               </Link>
               <Link href="/signup" className={buttonVariants({ size: "md" })}>
-                Sign Up
+                Create account
               </Link>
             </>
           ) : null}

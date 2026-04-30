@@ -86,9 +86,9 @@ export function SignupForm() {
 
   return (
     <AuthFormShell
-      eyebrow="Sign Up"
+      eyebrow="Join Manyumba"
       title="Create your account"
-      description="Email sign-up and Google OAuth both flow through Supabase Auth and then return you to where you meant to go."
+      description="Set up your Manyumba account once, then return straight to the booking, listing, or chat flow you came from."
     >
       {error ? <ToastMessage message={error} /> : null}
       {successMessage ? <ToastMessage message={successMessage} tone="success" /> : null}

@@ -7,83 +7,87 @@ type HouseTypePresentation = {
   coverTone: string;
 };
 
+const emeraldTone = "from-emerald-200 via-emerald-50 to-white";
+const goldTone = "from-[#E7D4BC] via-[#FBF6EF] to-white";
+const mixedTone = "from-[#D7F3E5] via-[#F8F1E8] to-white";
+
 export const houseTypePresentation: Record<HouseType, HouseTypePresentation> = {
   [HouseType.SINGLE_ROOM]: {
     bedrooms: 1,
     bathrooms: 1,
-    coverTone: "from-amber-200 via-orange-100 to-white"
+    coverTone: goldTone
   },
   [HouseType.BEDSITTER]: {
     bedrooms: 1,
     bathrooms: 1,
     guests: 1,
-    coverTone: "from-rose-200 via-orange-100 to-white"
+    coverTone: mixedTone
   },
   [HouseType.STUDIO]: {
     bedrooms: 1,
     bathrooms: 1,
     guests: 2,
-    coverTone: "from-emerald-200 via-teal-100 to-white"
+    coverTone: emeraldTone
   },
   [HouseType.ONE_BEDROOM]: {
     bedrooms: 1,
     bathrooms: 1,
     guests: 2,
-    coverTone: "from-lime-200 via-emerald-100 to-white"
+    coverTone: emeraldTone
   },
   [HouseType.TWO_BEDROOM]: {
     bedrooms: 2,
     bathrooms: 2,
     guests: 4,
-    coverTone: "from-sky-200 via-cyan-100 to-white"
+    coverTone: mixedTone
   },
   [HouseType.THREE_BEDROOM]: {
     bedrooms: 3,
     bathrooms: 3,
     guests: 6,
-    coverTone: "from-cyan-200 via-sky-100 to-white"
+    coverTone: emeraldTone
   },
   [HouseType.FOUR_BEDROOM]: {
     bedrooms: 4,
     bathrooms: 4,
     guests: 8,
-    coverTone: "from-indigo-200 via-blue-100 to-white"
+    coverTone: goldTone
   },
   [HouseType.FIVE_BEDROOM_PLUS]: {
     bedrooms: 5,
     bathrooms: 5,
     guests: 10,
-    coverTone: "from-violet-200 via-fuchsia-100 to-white"
+    coverTone: mixedTone
   },
   [HouseType.MAISONETTE]: {
     bedrooms: 4,
     bathrooms: 3,
     guests: 8,
-    coverTone: "from-yellow-200 via-amber-100 to-white"
+    coverTone: goldTone
   },
   [HouseType.TOWNHOUSE]: {
     bedrooms: 4,
     bathrooms: 3,
     guests: 8,
-    coverTone: "from-orange-200 via-amber-100 to-white"
+    coverTone: mixedTone
   },
   [HouseType.BUNGALOW]: {
     bedrooms: 3,
     bathrooms: 2,
     guests: 6,
-    coverTone: "from-green-200 via-lime-100 to-white"
+    coverTone: emeraldTone
   },
   [HouseType.VILLA]: {
     bedrooms: 5,
     bathrooms: 4,
     guests: 10,
-    coverTone: "from-blue-200 via-indigo-100 to-white"
+    coverTone: goldTone
   },
   [HouseType.APARTMENT]: {
     bedrooms: 2,
     bathrooms: 2,
     guests: 4,
-    coverTone: "from-stone-200 via-slate-100 to-white"
+    coverTone: mixedTone
   }
 };
 

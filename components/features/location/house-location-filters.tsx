@@ -16,7 +16,7 @@ type HouseLocationFiltersProps = {
 };
 
 const inputClassName =
-  "flex h-9 w-full rounded-md border border-input bg-white px-3 text-xs text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
+  "flex h-10 w-full rounded-xl border border-input bg-white px-3.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 export function HouseLocationFilters({
   catalog,
@@ -93,7 +93,7 @@ export function HouseLocationFilters({
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-border/70 bg-muted/25 p-3">
+    <div className="space-y-2 rounded-2xl border border-border/70 bg-muted/25 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Location filter</h2>

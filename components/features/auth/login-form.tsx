@@ -94,9 +94,9 @@ export function LoginForm() {
 
   return (
     <AuthFormShell
-      eyebrow="Authentication"
+      eyebrow="Manyumba Access"
       title="Welcome back"
-      description="Use email or Google sign-in to continue into your protected tenant, landlord, or admin workspace."
+      description="Sign in with email or Google to pick up your bookings, messages, saved preferences, and landlord tools."
     >
       {error ? <ToastMessage message={error} /> : null}
       {intentCopy && intentLabel ? <Badge>{intentLabel}</Badge> : null}
@@ -135,7 +135,7 @@ export function LoginForm() {
         </div>
         <div className="space-y-2">
           <Button className="w-full" type="submit" disabled={isSubmitting || isGoogleLoading}>
-            {isSubmitting ? "Logging in..." : "Sign In"}
+            {isSubmitting ? "Signing in..." : "Sign in"}
           </Button>
           <Button
             className="w-full"
@@ -152,7 +152,7 @@ export function LoginForm() {
       <p className="text-sm text-muted-foreground">
         New here?{" "}
         <Link href={`/signup?redirectTo=${encodeURIComponent(safeRedirectTo)}`} className="font-medium text-primary hover:text-primary/80">
-          Create an account
+          Create a Manyumba account
         </Link>
       </p>
     </AuthFormShell>

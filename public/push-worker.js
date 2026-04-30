@@ -1,6 +1,6 @@
 self.addEventListener("push", (event) => {
   const payload = event.data ? event.data.json() : {};
-  const title = payload.title || "Pata Keja";
+  const title = payload.title || "Manyumba";
   const body = payload.body || "You have a new update.";
   const url = typeof payload.url === "string" && payload.url.startsWith("/") ? payload.url : "/notifications";
 

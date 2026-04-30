@@ -130,8 +130,8 @@ export function ChatInput({
         placeholder={placeholder}
         rows={1}
         disabled={disabled}
-        className="max-h-[120px] min-h-[38px] flex-1 resize-none rounded-2xl border border-border bg-muted/30 px-3 py-2 text-sm leading-5 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:bg-white"
-      />
+        className="max-h-[120px] min-h-[40px] flex-1 resize-none rounded-[1.25rem] border border-border/80 bg-white px-3.5 py-2.5 text-sm leading-5 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/10"
+        />
       <Button
         type="button"
         size="md"

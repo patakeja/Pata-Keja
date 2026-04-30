@@ -48,9 +48,9 @@ type ListingFormState = {
 };
 
 const inputClassName =
-  "flex h-9 w-full rounded-md border border-input bg-white px-3 text-xs text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
+  "flex h-10 w-full rounded-xl border border-input bg-white px-3.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
 const textareaClassName =
-  "flex min-h-28 w-full rounded-md border border-input bg-white px-3 py-2 text-xs text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
+  "flex min-h-28 w-full rounded-xl border border-input bg-white px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 const initialFormState: ListingFormState = {
   title: "",
@@ -245,7 +245,7 @@ export function CreateListingForm({
           </div>
 
           {!isSupabaseReady ? (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+            <p className="rounded-xl border border-accent/35 bg-accent/15 px-3 py-2 text-[11px] text-accent-foreground">
               Supabase environment variables are missing, so listing publishing is currently disabled.
             </p>
           ) : null}
@@ -533,7 +533,7 @@ export function CreateListingForm({
             ) : null}
           </div>
 
-          <label className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-foreground">
+          <label className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs text-foreground">
             <input
               type="checkbox"
               checked={formState.isActive}
@@ -543,7 +543,7 @@ export function CreateListingForm({
             Publish as active immediately
           </label>
 
-          <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground md:col-span-2">
+          <div className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground md:col-span-2">
             Booking capacity is derived automatically from available units and the admin booking multiplier.
           </div>
         </CardContent>

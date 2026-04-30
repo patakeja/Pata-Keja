@@ -17,7 +17,7 @@ type LocationManagementPanelProps = {
 };
 
 const inputClassName =
-  "flex h-9 w-full rounded-md border border-input bg-white px-3 text-xs text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
+  "flex h-10 w-full rounded-xl border border-input bg-white px-3.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -227,7 +227,7 @@ export function LocationManagementPanel({
         </form>
 
         {townMode === "select" && townId ? (
-          <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+          <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[11px] font-medium text-foreground">Existing areas in this town</p>
               <span className="text-[10px] text-muted-foreground">{existingAreas.length} saved</span>

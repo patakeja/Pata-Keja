@@ -68,14 +68,14 @@ export function NotificationBell() {
     <Link
       href={href}
       className={cn(
-        "fixed right-3 top-3 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-white/95 text-foreground shadow-lg backdrop-blur transition hover:border-primary/40 hover:text-primary",
-        isActive ? "border-primary/60 text-primary" : ""
+        "fixed right-3 top-3 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full border border-primary/15 bg-white/95 text-primary shadow-lg backdrop-blur transition hover:border-primary/40 hover:bg-primary/5",
+        isActive ? "border-primary/55 bg-primary/5 text-primary" : ""
       )}
       aria-label="Notifications"
     >
       <BellIcon className="h-5 w-5" />
       {unreadCount > 0 ? (
-        <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">
+        <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[#DC2626] px-1.5 py-0.5 text-[10px] font-semibold text-white">
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       ) : null}

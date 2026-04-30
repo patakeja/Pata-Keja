@@ -1,7 +1,7 @@
 import { BookingStatus, ListingType } from "@/types";
 
-export const APP_NAME = "Pata Keja";
-export const APP_TAGLINE = "Flexible real estate infrastructure for rentals, short stays, and reservations.";
+export const APP_NAME = "Manyumba";
+export const APP_TAGLINE = "Find and book houses easily near you";
 export const DEFAULT_BOOKING_HOLD_DURATION_HOURS = 72;
 export const BOOKING_RESERVATION_WINDOW_HOURS = DEFAULT_BOOKING_HOLD_DURATION_HOURS;
 export const DEFAULT_LISTING_TOTAL_UNITS = 1;

@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 const selectClassName =
-  "flex h-9 w-full rounded-md border border-input bg-white px-3 text-xs text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
+  "flex h-10 w-full rounded-xl border border-input bg-white px-3.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -261,7 +261,7 @@ export function NotificationCenterPanel() {
   if (status !== "authenticated" || !user) {
     return (
       <Card>
-        <CardContent className="py-6 text-xs text-muted-foreground">Sign in to view your notifications.</CardContent>
+        <CardContent className="py-6 text-sm text-muted-foreground">Sign in to see your Manyumba notifications.</CardContent>
       </Card>
     );
   }
@@ -272,12 +272,14 @@ export function NotificationCenterPanel() {
         <CardContent className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
             <h1 className="text-base font-semibold text-foreground">Notifications</h1>
-            <p className="text-xs text-muted-foreground">
-              Stay on top of chats, booking urgency, payments, and promoted houses near your target area.
+            <p className="text-sm text-muted-foreground">
+              Stay on top of chats, booking updates, payments, and featured houses in the places you care about.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge>{notifications.filter((notification) => !notification.read).length} unread</Badge>
+            <Badge className="border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]">
+              {notifications.filter((notification) => !notification.read).length} unread
+            </Badge>
             <Button variant="outline" onClick={() => void handleMarkAllRead()}>
               Mark all read
             </Button>
@@ -290,8 +292,8 @@ export function NotificationCenterPanel() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-foreground">Push + targeting</p>
-              <p className="text-xs text-muted-foreground">
-                Control which locations trigger alerts and whether this device can receive push notifications.
+              <p className="text-sm text-muted-foreground">
+                Choose the locations that should trigger alerts and whether this device can receive push notifications.
               </p>
             </div>
             <Badge>{pushPermission === "unsupported" ? "Unsupported" : pushPermission}</Badge>
@@ -369,7 +371,7 @@ export function NotificationCenterPanel() {
 
             <div className="flex flex-wrap gap-2 self-end">
               <Button variant="outline" onClick={() => void handleSavePreferences()} disabled={isSavingPreferences}>
-                {isSavingPreferences ? "Saving..." : "Save targeting"}
+                {isSavingPreferences ? "Saving..." : "Save preferences"}
               </Button>
               {isPushEnabled ? (
                 <Button variant="ghost" onClick={() => void handleDisablePush()} disabled={isUpdatingPush}>
@@ -385,11 +387,11 @@ export function NotificationCenterPanel() {
 
           {preferences ? (
             <p className="text-[11px] text-muted-foreground">
-              Current saved targeting:
+              Current saved preferences:
               {" "}
-              {[preferences.areaId && "Area set", preferences.townId && "Town set", preferences.countyId && "County set"]
+              {[preferences.areaId && "Area", preferences.townId && "Town", preferences.countyId && "County"]
                 .filter(Boolean)
-                .join(" • ") || "Any location"}
+                .join(" / ") || "Any location"}
             </p>
           ) : null}
         </CardContent>
@@ -415,7 +417,7 @@ export function NotificationCenterPanel() {
               type="button"
               onClick={() => void handleOpenNotification(notification)}
               className={cn(
-                "w-full rounded-lg border border-border/80 bg-white text-left shadow-sm transition hover:border-primary/40 hover:bg-primary/5",
+                "w-full rounded-2xl border border-border/80 bg-white/95 text-left shadow-sm transition hover:border-primary/35 hover:bg-primary/5",
                 !notification.read ? "border-primary/30" : ""
               )}
             >
@@ -426,7 +428,7 @@ export function NotificationCenterPanel() {
                       <p className="text-sm font-semibold text-foreground">{notification.title}</p>
                       <Badge>{getNotificationBadge(notification.type)}</Badge>
                       {!notification.read ? (
-                        <span className="inline-flex h-2.5 w-2.5 rounded-full bg-accent" aria-hidden="true" />
+                        <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#DC2626]" aria-hidden="true" />
                       ) : null}
                     </div>
                     <p className="text-xs text-muted-foreground">{notification.body}</p>
@@ -443,8 +445,8 @@ export function NotificationCenterPanel() {
         <Card>
           <CardContent className="space-y-2 py-6">
             <p className="text-sm font-semibold text-foreground">No notifications yet</p>
-            <p className="text-xs text-muted-foreground">
-              Once chats, bookings, payments, or promoted houses target you, they will show up here.
+            <p className="text-sm text-muted-foreground">
+              Manyumba will show chats, bookings, payments, and featured houses here as soon as they reach you.
             </p>
           </CardContent>
         </Card>

@@ -10,12 +10,11 @@ export default function NotFound() {
         <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Not Found</p>
         <h1 className="text-4xl font-semibold tracking-tight text-foreground">The page you requested is not available.</h1>
         <p className="max-w-xl text-base leading-7 text-muted-foreground">
-          This scaffold already supports dynamic listing routes, but the requested record does not exist in the placeholder
-          data source.
+          The Manyumba page you tried to open is missing or no longer available. Head back to the catalog to keep browsing.
         </p>
       </div>
-      <Link href="/listings" className={buttonVariants({ size: "lg" })}>
-        Back to listings
+      <Link href="/houses" className={buttonVariants({ size: "lg" })}>
+        Back to houses
       </Link>
     </PageShell>
   );

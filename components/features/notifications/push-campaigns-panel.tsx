@@ -23,7 +23,7 @@ type PushCampaignsPanelProps = {
 };
 
 const selectClassName =
-  "flex h-9 w-full rounded-md border border-input bg-white px-3 text-xs text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
+  "flex h-10 w-full rounded-xl border border-input bg-white px-3.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 const reachTypeOptions = [
   { value: PushCampaignReachType.AREA, label: "Area" },
@@ -418,7 +418,7 @@ export function PushCampaignsPanel({ workspaceLabel }: PushCampaignsPanelProps) 
             </div>
           </div>
 
-          <div className="rounded-lg border border-border/80 bg-muted/35 p-3">
+          <div className="rounded-2xl border border-primary/10 bg-primary/5 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Quote</p>
             <p className="mt-1 text-sm font-semibold text-foreground">{formatReachLabel(selectedListing, reachType)}</p>
             {quote ? (
@@ -481,7 +481,7 @@ export function PushCampaignsPanel({ workspaceLabel }: PushCampaignsPanelProps) 
                 const needsPayment = campaign.paymentStatus !== PaymentStatus.COMPLETED && campaign.status !== PushCampaignStatus.COMPLETED;
 
                 return (
-                  <div key={campaign.id} className="rounded-lg border border-border/80 bg-white p-3">
+                  <div key={campaign.id} className="rounded-2xl border border-border/80 bg-white p-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -501,7 +501,7 @@ export function PushCampaignsPanel({ workspaceLabel }: PushCampaignsPanelProps) 
                       <div className="text-right">
                         <p className="text-sm font-semibold text-foreground">{formatCurrency(campaign.priceTotal)}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          {campaign.audienceSize.toLocaleString()} reach • {campaign.impressionsSent.toLocaleString()} sent
+                          {campaign.audienceSize.toLocaleString()} reach / {campaign.impressionsSent.toLocaleString()} sent
                         </p>
                       </div>
                     </div>

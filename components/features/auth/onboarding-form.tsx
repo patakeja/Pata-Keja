@@ -73,7 +73,7 @@ export function OnboardingForm() {
       <AuthFormShell
         eyebrow="Onboarding"
         title="Setting up your account"
-        description="We are loading your profile so we can finish account setup."
+        description="We are loading your Manyumba profile so we can finish account setup."
       >
         <p className="text-sm text-muted-foreground">Loading your account...</p>
       </AuthFormShell>
@@ -84,7 +84,7 @@ export function OnboardingForm() {
     <AuthFormShell
       eyebrow="Onboarding"
       title="Finish your profile"
-      description="We use your profile details to personalize booking, landlord, and support flows."
+      description="Manyumba uses your profile details to personalize bookings, alerts, landlord workflows, and support."
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{user.role}</Badge>

@@ -9,12 +9,12 @@ type PaymentStatusBadgeProps = {
 };
 
 const statusClasses: Record<string, string> = {
-  [PaymentStatus.PENDING]: "bg-amber-100 text-amber-800",
-  [PaymentStatus.CONFIRMED]: "bg-emerald-100 text-emerald-800",
-  [PaymentStatus.COMPLETED]: "bg-emerald-100 text-emerald-800",
-  [PaymentStatus.FAILED]: "bg-rose-100 text-rose-800",
-  [PaymentStatus.PARTIALLY_REFUNDED]: "bg-slate-200 text-slate-800",
-  [BookingStatus.ACTIVE]: "bg-blue-100 text-blue-800",
+  [PaymentStatus.PENDING]: "border-accent/40 bg-accent/18 text-accent-foreground",
+  [PaymentStatus.CONFIRMED]: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  [PaymentStatus.COMPLETED]: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  [PaymentStatus.FAILED]: "border-rose-200 bg-rose-50 text-rose-800",
+  [PaymentStatus.PARTIALLY_REFUNDED]: "border-border bg-muted text-foreground",
+  [BookingStatus.ACTIVE]: "border-emerald-200 bg-emerald-50 text-emerald-700",
   [BookingStatus.EXPIRED]: "bg-rose-100 text-rose-800"
 };
 

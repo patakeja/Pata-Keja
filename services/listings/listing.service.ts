@@ -503,7 +503,7 @@ export class ListingService {
     return {
       ...preview,
       amenities: [],
-      hostLabel: listing.landlord ? `Managed by ${listing.landlord.fullName}` : "Managed by Pata Keja",
+      hostLabel: listing.landlord ? `Managed by ${listing.landlord.fullName}` : "Managed by Manyumba",
       availabilityLabel: this.getAvailabilityLabel(listing.availabilityStatus, listing.availableFrom),
       locationVisibility: LocationVisibility.APPROXIMATE,
       exactLocationHint: "Exact location is only revealed after authentication.",

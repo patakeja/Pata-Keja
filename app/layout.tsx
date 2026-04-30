@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { NotificationBell } from "@/components/features/notifications/notification-bell";
 import { PushRegistrationBridge } from "@/components/features/notifications/push-registration-bridge";
 import { BottomNav } from "@/components/ui/bottom-nav";
-import { APP_NAME, APP_TAGLINE } from "@/config/app";
+import { APP_NAME } from "@/config/app";
 import { AuthStoreProvider } from "@/store";
 
 import "./globals.css";
@@ -22,10 +22,10 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: {
-    default: `${APP_NAME} | Scalable Real Estate Platform`,
+    default: APP_NAME,
     template: `%s | ${APP_NAME}`
   },
-  description: APP_TAGLINE
+  description: "Find and book houses easily near you"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
