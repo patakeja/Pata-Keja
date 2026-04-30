@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { NotificationBell } from "@/components/features/notifications/notification-bell";
+import { PushRegistrationBridge } from "@/components/features/notifications/push-registration-bridge";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { APP_NAME, APP_TAGLINE } from "@/config/app";
 import { AuthStoreProvider } from "@/store";
@@ -31,7 +33,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en" className={`${manrope.variable} ${fraunces.variable}`}>
       <body className="min-h-screen pb-16 font-[family:var(--font-sans)] md:pb-0">
         <AuthStoreProvider>
+          <PushRegistrationBridge />
           {children}
+          <NotificationBell />
           <BottomNav />
         </AuthStoreProvider>
       </body>

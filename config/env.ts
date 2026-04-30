@@ -1,6 +1,7 @@
 const publicEnv = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ""
+  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+  vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""
 };
 
 const serverEnv = {
@@ -9,7 +10,8 @@ const serverEnv = {
   darajaShortcode: process.env.DARAJA_SHORTCODE ?? "",
   darajaPasskey: process.env.DARAJA_PASSKEY ?? "",
   darajaEnv: process.env.DARAJA_ENV ?? "sandbox",
-  darajaCallbackUrl: process.env.DARAJA_CALLBACK_URL ?? ""
+  darajaCallbackUrl: process.env.DARAJA_CALLBACK_URL ?? "",
+  darajaCampaignCallbackUrl: process.env.DARAJA_CAMPAIGN_CALLBACK_URL ?? process.env.DARAJA_CALLBACK_URL ?? ""
 };
 
 export const env = publicEnv;
@@ -52,6 +54,11 @@ export function getDarajaEnvOrThrow() {
     shortcode: serverEnv.darajaShortcode,
     passkey: serverEnv.darajaPasskey,
     env: serverEnv.darajaEnv as "sandbox" | "production",
-    callbackUrl: serverEnv.darajaCallbackUrl
+    callbackUrl: serverEnv.darajaCallbackUrl,
+    campaignCallbackUrl: serverEnv.darajaCampaignCallbackUrl
   };
+}
+
+export function getVapidPublicKey() {
+  return publicEnv.vapidPublicKey.trim();
 }

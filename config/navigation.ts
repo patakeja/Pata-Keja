@@ -19,12 +19,14 @@ export const userNavigation: NavigationItem[] = [
 export const landlordNavigation: NavigationItem[] = [
   { href: "/landlord/dashboard", label: "Dashboard", description: "Portfolio snapshot and booking activity" },
   { href: "/landlord/listings", label: "My Houses", description: "Manage availability, images, and rentals" },
+  { href: "/landlord/campaigns", label: "Campaigns", description: "Paid push reach and listing promotion" },
   { href: "/landlord/chats", label: "Chats", description: "Booking conversations with tenants" }
 ];
 
 export const adminNavigation: NavigationItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", description: "Marketplace operations overview" },
   { href: "/admin/listings", label: "Houses", description: "Listing review and inventory control" },
+  { href: "/admin/push-campaigns", label: "Campaigns", description: "Promotion pricing and paid audience reach" },
   { href: "/admin/locations", label: "Locations", description: "Counties, towns, and area setup" },
   { href: "/admin/chats", label: "Chats", description: "Read-only booking conversations" },
   { href: "/admin/landlords", label: "Landlords", description: "Access control and commission settings" },

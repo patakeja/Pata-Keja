@@ -8,3 +8,4 @@ export * from "./landlord";
 export * from "./listing";
 export * from "./location";
 export * from "./payment";
+export * from "./notification";

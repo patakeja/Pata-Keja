@@ -3,6 +3,7 @@ import type { BookingStatus } from "./booking";
 import type { MessageStatus } from "./chat";
 import type { RentalSource } from "./landlord";
 import type { HouseType, ListingType } from "./listing";
+import type { NotificationType, PushCampaignReachType, PushCampaignStatus } from "./notification";
 import type { PaymentMethod, PaymentStatus, PaymentType } from "./payment";
 
 export type Json =
@@ -15,6 +16,9 @@ export type Json =
 
 type PersistedUserRole = Exclude<UserRole, UserRole.GUEST>;
 type PersistedBookingStatus = BookingStatus;
+type PersistedNotificationType = NotificationType;
+type PersistedPushCampaignReachType = PushCampaignReachType;
+type PersistedPushCampaignStatus = PushCampaignStatus;
 
 export type Database = {
   public: {
@@ -777,9 +781,392 @@ export type Database = {
           }
         ];
       };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: PersistedNotificationType;
+          title: string;
+          body: string;
+          data: Json;
+          read: boolean;
+          read_at: string | null;
+          dedupe_key: string | null;
+          push_state: string;
+          last_push_attempt_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: PersistedNotificationType;
+          title: string;
+          body: string;
+          data?: Json;
+          read?: boolean;
+          read_at?: string | null;
+          dedupe_key?: string | null;
+          push_state?: string;
+          last_push_attempt_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          type?: PersistedNotificationType;
+          title?: string;
+          body?: string;
+          data?: Json;
+          read?: boolean;
+          read_at?: string | null;
+          dedupe_key?: string | null;
+          push_state?: string;
+          last_push_attempt_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      push_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          endpoint: string;
+          keys: Json;
+          created_at: string;
+          updated_at: string;
+          last_success_at: string | null;
+          last_error: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          endpoint: string;
+          keys?: Json;
+          created_at?: string;
+          updated_at?: string;
+          last_success_at?: string | null;
+          last_error?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          endpoint?: string;
+          keys?: Json;
+          created_at?: string;
+          updated_at?: string;
+          last_success_at?: string | null;
+          last_error?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      user_preferences: {
+        Row: {
+          user_id: string;
+          county: number | null;
+          town: number | null;
+          area: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          county?: number | null;
+          town?: number | null;
+          area?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          county?: number | null;
+          town?: number | null;
+          area?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "user_preferences_county_fkey";
+            columns: ["county"];
+            isOneToOne: false;
+            referencedRelation: "counties";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "user_preferences_county_town_consistency_fk";
+            columns: ["county", "town"];
+            isOneToOne: false;
+            referencedRelation: "towns";
+            referencedColumns: ["county_id", "id"];
+          },
+          {
+            foreignKeyName: "user_preferences_town_fkey";
+            columns: ["town"];
+            isOneToOne: false;
+            referencedRelation: "towns";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "user_preferences_town_area_consistency_fk";
+            columns: ["town", "area"];
+            isOneToOne: false;
+            referencedRelation: "areas";
+            referencedColumns: ["town_id", "id"];
+          },
+          {
+            foreignKeyName: "user_preferences_area_fkey";
+            columns: ["area"];
+            isOneToOne: false;
+            referencedRelation: "areas";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      push_campaigns: {
+        Row: {
+          id: string;
+          listing_id: string;
+          landlord_id: string;
+          reach_type: PersistedPushCampaignReachType;
+          frequency_per_week: number;
+          duration_days: number;
+          price_total: number;
+          status: PersistedPushCampaignStatus;
+          payment_status: PaymentStatus;
+          starts_at: string | null;
+          ends_at: string | null;
+          activated_at: string | null;
+          last_dispatched_at: string | null;
+          audience_size: number;
+          impressions_sent: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          listing_id: string;
+          landlord_id: string;
+          reach_type: PersistedPushCampaignReachType;
+          frequency_per_week: number;
+          duration_days: number;
+          price_total: number;
+          status?: PersistedPushCampaignStatus;
+          payment_status?: PaymentStatus;
+          starts_at?: string | null;
+          ends_at?: string | null;
+          activated_at?: string | null;
+          last_dispatched_at?: string | null;
+          audience_size?: number;
+          impressions_sent?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          listing_id?: string;
+          landlord_id?: string;
+          reach_type?: PersistedPushCampaignReachType;
+          frequency_per_week?: number;
+          duration_days?: number;
+          price_total?: number;
+          status?: PersistedPushCampaignStatus;
+          payment_status?: PaymentStatus;
+          starts_at?: string | null;
+          ends_at?: string | null;
+          activated_at?: string | null;
+          last_dispatched_at?: string | null;
+          audience_size?: number;
+          impressions_sent?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "push_campaigns_listing_id_fkey";
+            columns: ["listing_id"];
+            isOneToOne: false;
+            referencedRelation: "listings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "push_campaigns_landlord_id_fkey";
+            columns: ["landlord_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      push_campaign_payments: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          user_id: string;
+          amount: number;
+          status: PaymentStatus;
+          phone: string | null;
+          mpesa_receipt: string | null;
+          checkout_request_id: string | null;
+          merchant_request_id: string | null;
+          provider_result_code: number | null;
+          provider_result_desc: string | null;
+          provider_response: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          user_id: string;
+          amount: number;
+          status?: PaymentStatus;
+          phone?: string | null;
+          mpesa_receipt?: string | null;
+          checkout_request_id?: string | null;
+          merchant_request_id?: string | null;
+          provider_result_code?: number | null;
+          provider_result_desc?: string | null;
+          provider_response?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          user_id?: string;
+          amount?: number;
+          status?: PaymentStatus;
+          phone?: string | null;
+          mpesa_receipt?: string | null;
+          checkout_request_id?: string | null;
+          merchant_request_id?: string | null;
+          provider_result_code?: number | null;
+          provider_result_desc?: string | null;
+          provider_response?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "push_campaign_payments_campaign_id_fkey";
+            columns: ["campaign_id"];
+            isOneToOne: false;
+            referencedRelation: "push_campaigns";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "push_campaign_payments_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      notification_push_deliveries: {
+        Row: {
+          id: string;
+          notification_id: string;
+          subscription_id: string | null;
+          endpoint: string;
+          status: string;
+          response_status: number | null;
+          response_body: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          notification_id: string;
+          subscription_id?: string | null;
+          endpoint: string;
+          status: string;
+          response_status?: number | null;
+          response_body?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          notification_id?: string;
+          subscription_id?: string | null;
+          endpoint?: string;
+          status?: string;
+          response_status?: number | null;
+          response_body?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_push_deliveries_notification_id_fkey";
+            columns: ["notification_id"];
+            isOneToOne: false;
+            referencedRelation: "notifications";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notification_push_deliveries_subscription_id_fkey";
+            columns: ["subscription_id"];
+            isOneToOne: false;
+            referencedRelation: "push_subscriptions";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      calculate_push_campaign_quote: {
+        Args: {
+          p_listing_id: string;
+          p_reach_type: PersistedPushCampaignReachType;
+          p_frequency_per_week: number;
+          p_duration_days: number;
+        };
+        Returns: {
+          audience_size: number;
+          estimated_impressions: number;
+          cpm: number;
+          price_total: number;
+          reach_label: string;
+        }[];
+      };
+      mark_notification_read: {
+        Args: {
+          p_notification_id: string;
+        };
+        Returns: boolean;
+      };
+      mark_all_notifications_read: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      notification_hourly_maintenance: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

@@ -47,6 +47,7 @@ export class DarajaService {
     const amount = this.normalizeAmount(input.amount);
     const phone = this.normalizePhoneNumber(input.phone);
     const shortcode = config.shortcode;
+    const callbackUrl = input.callbackUrl?.trim() || config.callbackUrl;
     const password = Buffer.from(`${shortcode}${config.passkey}${timestamp}`).toString("base64");
     const response = await fetch(`${this.getBaseUrl(config.env)}/mpesa/stkpush/v1/processrequest`, {
       method: "POST",
@@ -63,7 +64,7 @@ export class DarajaService {
         PartyA: phone,
         PartyB: shortcode,
         PhoneNumber: phone,
-        CallBackURL: config.callbackUrl,
+        CallBackURL: callbackUrl,
         AccountReference: input.accountReference.slice(0, 12),
         TransactionDesc: input.transactionDesc.slice(0, 80)
       }),

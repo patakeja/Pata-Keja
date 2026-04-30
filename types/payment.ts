@@ -65,6 +65,7 @@ export type DarajaStkPushInput = {
   amount: number;
   accountReference: string;
   transactionDesc: string;
+  callbackUrl?: string;
 };
 
 export type DarajaStkPushResponse = {
