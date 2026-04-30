@@ -4,6 +4,7 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import {
   useCallback,
   createContext,
+  useRef,
   startTransition,
   useContext,
   useEffect,
@@ -33,6 +34,8 @@ export function AuthStoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [lastEvent, setLastEvent] = useState<AuthChangeEvent | null>(null);
+  const userRef = useRef<AuthenticatedUser | null>(null);
+  const sessionRef = useRef<Session | null>(null);
   const currentUserId = user?.id ?? null;
 
   const applySnapshot = useCallback(
@@ -47,14 +50,46 @@ export function AuthStoreProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const applySessionRestoreSnapshot = useCallback((nextSession: Session, nextEvent: AuthChangeEvent | null) => {
+    const preservedUser = userRef.current?.id === nextSession.user.id ? userRef.current : null;
+
+    startTransition(() => {
+      setSession(nextSession);
+      setUser(preservedUser);
+      setLastEvent(nextEvent);
+      setStatus(preservedUser ? "authenticated" : "loading");
+    });
+  }, []);
+
   const refreshAuthState = useCallback(async () => {
     try {
-      const [nextSession, nextUser] = await Promise.all([getSession(), getCurrentUserWithProfile()]);
-      applySnapshot(nextSession, nextUser, null);
+      const nextSession = await getSession();
+
+      if (!nextSession?.user) {
+        applySnapshot(null, null, null);
+        return;
+      }
+
+      try {
+        const nextUser = await getCurrentUserWithProfile();
+        applySnapshot(nextSession, nextUser, null);
+      } catch {
+        applySessionRestoreSnapshot(nextSession, null);
+      }
     } catch {
+      if (sessionRef.current?.user) {
+        applySessionRestoreSnapshot(sessionRef.current, null);
+        return;
+      }
+
       applySnapshot(null, null, null);
     }
-  }, [applySnapshot]);
+  }, [applySessionRestoreSnapshot, applySnapshot]);
+
+  useEffect(() => {
+    userRef.current = user;
+    sessionRef.current = session;
+  }, [session, user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -66,6 +101,12 @@ export function AuthStoreProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      if (nextSession?.user && !nextUser) {
+        applySessionRestoreSnapshot(nextSession, event);
+        void refreshAuthState();
+        return;
+      }
+
       applySnapshot(nextSession, nextUser, event);
     });
 
@@ -73,7 +114,7 @@ export function AuthStoreProvider({ children }: { children: ReactNode }) {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [applySnapshot, refreshAuthState]);
+  }, [applySessionRestoreSnapshot, applySnapshot, refreshAuthState]);
 
   useEffect(() => {
     if (status !== "authenticated" || !currentUserId) {

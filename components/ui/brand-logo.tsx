@@ -24,7 +24,7 @@ export function BrandLogo({ className, imageClassName, fallbackClassName }: Bran
           src="/logo.png"
           alt={APP_NAME}
           className={cn(
-            "h-9 w-auto object-contain transition-opacity",
+            "h-11 w-auto object-contain transition-opacity",
             isLoaded ? "opacity-100" : "opacity-0",
             imageClassName
           )}
@@ -36,7 +36,7 @@ export function BrandLogo({ className, imageClassName, fallbackClassName }: Bran
       {hasError ? (
         <span
           className={cn(
-            "font-[family:var(--font-display)] text-2xl font-semibold tracking-tight text-foreground",
+            "font-[family:var(--font-display)] text-3xl font-semibold tracking-tight text-foreground",
             fallbackClassName
           )}
         >

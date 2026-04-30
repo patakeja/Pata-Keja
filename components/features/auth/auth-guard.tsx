@@ -31,20 +31,21 @@ function isAuthorized(
 export function AuthGuard({ allowedRoles, children }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { status, user } = useAuthStore();
+  const { session, status, user } = useAuthStore();
   const authorized = isAuthorized(user, allowedRoles);
+  const isRestoringSession = Boolean(session?.user) && !user;
 
   useEffect(() => {
-    if (status === "loading") {
+    if (status === "loading" || isRestoringSession) {
       return;
     }
 
     if (!authorized) {
       router.replace(buildLoginRedirect(pathname));
     }
-  }, [authorized, pathname, router, status]);
+  }, [authorized, isRestoringSession, pathname, router, status]);
 
-  if (status === "loading" || !authorized) {
+  if (status === "loading" || isRestoringSession || !authorized) {
     return (
       <Card>
         <CardContent className="py-6 text-xs text-muted-foreground">Checking your access...</CardContent>

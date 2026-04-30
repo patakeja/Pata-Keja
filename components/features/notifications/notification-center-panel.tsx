@@ -14,7 +14,13 @@ import {
 } from "@/lib/pushRegistration";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store";
-import { NotificationType, type ListingLocationCatalog, type NotificationPreferenceRecord, type UserNotification } from "@/types";
+import {
+  NotificationType,
+  UserRole,
+  type ListingLocationCatalog,
+  type NotificationPreferenceRecord,
+  type UserNotification
+} from "@/types";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,6 +56,7 @@ function getNotificationBadge(type: NotificationType) {
 export function NotificationCenterPanel() {
   const router = useRouter();
   const { status, user } = useAuthStore();
+  const canManagePushTargeting = user?.role === UserRole.ADMIN || user?.role === UserRole.LANDLORD;
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [preferences, setPreferences] = useState<NotificationPreferenceRecord | null>(null);
   const [catalog, setCatalog] = useState<ListingLocationCatalog>({
@@ -107,11 +114,23 @@ export function NotificationCenterPanel() {
       setIsLoading(true);
 
       try {
+        const nextNotificationsPromise = notificationService.getMyNotifications();
+        const nextPreferencesPromise = canManagePushTargeting ? notificationService.getMyPreferences() : Promise.resolve(null);
+        const nextCatalogPromise = canManagePushTargeting
+          ? locationService.getLocationCatalog()
+          : Promise.resolve<ListingLocationCatalog>({
+              counties: [],
+              towns: [],
+              areas: []
+            });
+        const existingSubscriptionPromise = canManagePushTargeting
+          ? getExistingBrowserPushSubscription()
+          : Promise.resolve(null);
         const [nextNotifications, nextPreferences, nextCatalog, existingSubscription] = await Promise.all([
-          notificationService.getMyNotifications(),
-          notificationService.getMyPreferences(),
-          locationService.getLocationCatalog(),
-          getExistingBrowserPushSubscription()
+          nextNotificationsPromise,
+          nextPreferencesPromise,
+          nextCatalogPromise,
+          existingSubscriptionPromise
         ]);
 
         if (!isMounted) {
@@ -120,9 +139,9 @@ export function NotificationCenterPanel() {
 
         setNotifications(nextNotifications);
         setPreferences(nextPreferences);
-        setCountyId(nextPreferences.countyId ? String(nextPreferences.countyId) : "");
-        setTownId(nextPreferences.townId ? String(nextPreferences.townId) : "");
-        setAreaId(nextPreferences.areaId ? String(nextPreferences.areaId) : "");
+        setCountyId(nextPreferences?.countyId ? String(nextPreferences.countyId) : "");
+        setTownId(nextPreferences?.townId ? String(nextPreferences.townId) : "");
+        setAreaId(nextPreferences?.areaId ? String(nextPreferences.areaId) : "");
         setCatalog(nextCatalog);
         setIsPushEnabled(Boolean(existingSubscription));
         setFeedback(null);
@@ -150,7 +169,7 @@ export function NotificationCenterPanel() {
       isMounted = false;
       void subscription.unsubscribe();
     };
-  }, [status, user]);
+  }, [canManagePushTargeting, status, user]);
 
   async function handleMarkAllRead() {
     try {
@@ -287,115 +306,117 @@ export function NotificationCenterPanel() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Push + targeting</p>
-              <p className="text-sm text-muted-foreground">
-                Choose the locations that should trigger alerts and whether this device can receive push notifications.
+      {canManagePushTargeting ? (
+        <Card>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Push + targeting</p>
+                <p className="text-sm text-muted-foreground">
+                  Choose the locations that should trigger alerts and whether this device can receive push notifications.
+                </p>
+              </div>
+              <Badge>{pushPermission === "unsupported" ? "Unsupported" : pushPermission}</Badge>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <label htmlFor="notification-county" className="text-[11px] font-medium text-foreground">
+                    County
+                  </label>
+                  <select
+                    id="notification-county"
+                    className={selectClassName}
+                    value={countyId}
+                    onChange={(event) => {
+                      setCountyId(event.target.value);
+                      setTownId("");
+                      setAreaId("");
+                    }}
+                    disabled={isLoading}
+                  >
+                    <option value="">Any county</option>
+                    {catalog.counties.map((county) => (
+                      <option key={county.id} value={county.id}>
+                        {county.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="notification-town" className="text-[11px] font-medium text-foreground">
+                    Town
+                  </label>
+                  <select
+                    id="notification-town"
+                    className={selectClassName}
+                    value={townId}
+                    onChange={(event) => {
+                      setTownId(event.target.value);
+                      setAreaId("");
+                    }}
+                    disabled={isLoading || !countyId}
+                  >
+                    <option value="">{countyId ? "Any town" : "Select county first"}</option>
+                    {availableTowns.map((town) => (
+                      <option key={town.id} value={town.id}>
+                        {town.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="notification-area" className="text-[11px] font-medium text-foreground">
+                    Area
+                  </label>
+                  <select
+                    id="notification-area"
+                    className={selectClassName}
+                    value={areaId}
+                    onChange={(event) => setAreaId(event.target.value)}
+                    disabled={isLoading || !townId}
+                  >
+                    <option value="">{townId ? "Any area" : "Select town first"}</option>
+                    {availableAreas.map((area) => (
+                      <option key={area.id} value={area.id}>
+                        {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 self-end">
+                <Button variant="outline" onClick={() => void handleSavePreferences()} disabled={isSavingPreferences}>
+                  {isSavingPreferences ? "Saving..." : "Save preferences"}
+                </Button>
+                {isPushEnabled ? (
+                  <Button variant="ghost" onClick={() => void handleDisablePush()} disabled={isUpdatingPush}>
+                    {isUpdatingPush ? "Disabling..." : "Disable push"}
+                  </Button>
+                ) : (
+                  <Button onClick={() => void handleEnablePush()} disabled={isUpdatingPush || pushPermission === "unsupported"}>
+                    {isUpdatingPush ? "Enabling..." : "Enable push"}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {preferences ? (
+              <p className="text-[11px] text-muted-foreground">
+                Current saved preferences:
+                {" "}
+                {[preferences.areaId && "Area", preferences.townId && "Town", preferences.countyId && "County"]
+                  .filter(Boolean)
+                  .join(" / ") || "Any location"}
               </p>
-            </div>
-            <Badge>{pushPermission === "unsupported" ? "Unsupported" : pushPermission}</Badge>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="space-y-1">
-                <label htmlFor="notification-county" className="text-[11px] font-medium text-foreground">
-                  County
-                </label>
-                <select
-                  id="notification-county"
-                  className={selectClassName}
-                  value={countyId}
-                  onChange={(event) => {
-                    setCountyId(event.target.value);
-                    setTownId("");
-                    setAreaId("");
-                  }}
-                  disabled={isLoading}
-                >
-                  <option value="">Any county</option>
-                  {catalog.counties.map((county) => (
-                    <option key={county.id} value={county.id}>
-                      {county.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label htmlFor="notification-town" className="text-[11px] font-medium text-foreground">
-                  Town
-                </label>
-                <select
-                  id="notification-town"
-                  className={selectClassName}
-                  value={townId}
-                  onChange={(event) => {
-                    setTownId(event.target.value);
-                    setAreaId("");
-                  }}
-                  disabled={isLoading || !countyId}
-                >
-                  <option value="">{countyId ? "Any town" : "Select county first"}</option>
-                  {availableTowns.map((town) => (
-                    <option key={town.id} value={town.id}>
-                      {town.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label htmlFor="notification-area" className="text-[11px] font-medium text-foreground">
-                  Area
-                </label>
-                <select
-                  id="notification-area"
-                  className={selectClassName}
-                  value={areaId}
-                  onChange={(event) => setAreaId(event.target.value)}
-                  disabled={isLoading || !townId}
-                >
-                  <option value="">{townId ? "Any area" : "Select town first"}</option>
-                  {availableAreas.map((area) => (
-                    <option key={area.id} value={area.id}>
-                      {area.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 self-end">
-              <Button variant="outline" onClick={() => void handleSavePreferences()} disabled={isSavingPreferences}>
-                {isSavingPreferences ? "Saving..." : "Save preferences"}
-              </Button>
-              {isPushEnabled ? (
-                <Button variant="ghost" onClick={() => void handleDisablePush()} disabled={isUpdatingPush}>
-                  {isUpdatingPush ? "Disabling..." : "Disable push"}
-                </Button>
-              ) : (
-                <Button onClick={() => void handleEnablePush()} disabled={isUpdatingPush || pushPermission === "unsupported"}>
-                  {isUpdatingPush ? "Enabling..." : "Enable push"}
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {preferences ? (
-            <p className="text-[11px] text-muted-foreground">
-              Current saved preferences:
-              {" "}
-              {[preferences.areaId && "Area", preferences.townId && "Town", preferences.countyId && "County"]
-                .filter(Boolean)
-                .join(" / ") || "Any location"}
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {feedback ? (
         <Card className={cn(feedback.tone === "error" ? "border-rose-200" : "border-emerald-200")}>

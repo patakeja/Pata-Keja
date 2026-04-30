@@ -31,7 +31,7 @@ function getInitials(fullName: string) {
 }
 
 export function ProfileSummaryPanel() {
-  const { status, user, refreshAuthState } = useAuthStore();
+  const { session, status, user, refreshAuthState } = useAuthStore();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -61,6 +61,17 @@ export function ProfileSummaryPanel() {
     return (
       <Card>
         <CardContent className="py-6 text-xs text-muted-foreground">Loading profile...</CardContent>
+      </Card>
+    );
+  }
+
+  if (session?.user && !user) {
+    return (
+      <Card>
+        <CardContent className="space-y-3 py-5">
+          <h1 className="text-sm font-semibold text-foreground">Profile</h1>
+          <p className="text-xs text-muted-foreground">Restoring your account details...</p>
+        </CardContent>
       </Card>
     );
   }

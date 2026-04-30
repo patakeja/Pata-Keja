@@ -10,15 +10,16 @@ import { HouseType } from "@/types";
 type HouseTypeChipsProps = {
   selectedHouseType?: HouseType;
   hrefBase?: string;
+  className?: string;
 };
 
-export function HouseTypeChips({ selectedHouseType, hrefBase = "/houses" }: HouseTypeChipsProps) {
+export function HouseTypeChips({ selectedHouseType, hrefBase = "/houses", className }: HouseTypeChipsProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const basePath = pathname === hrefBase ? pathname : hrefBase;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={cn("flex flex-wrap gap-2", className)}>
       {primaryHouseTypeFilters.map((houseType) => {
         const isActive = selectedHouseType === houseType;
         const params = new URLSearchParams(pathname === hrefBase ? searchParams.toString() : "");

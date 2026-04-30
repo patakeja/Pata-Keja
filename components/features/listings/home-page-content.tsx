@@ -15,25 +15,35 @@ export async function HomePageContent() {
   const shortStayListings = listings.filter((listing) => listing.type === ListingType.SHORT_STAY).slice(0, 8);
 
   return (
-    <PageShell className="space-y-4 py-3 pb-6">
+    <PageShell className="space-y-5 py-4 pb-6">
       <Card>
-        <CardContent className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-1">
-            <h1 className="text-base font-semibold tracking-tight text-foreground">Find houses fast</h1>
+        <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-2">
+            <h1 className="font-[family:var(--font-display)] text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              Find your next rental or short stay faster
+            </h1>
             <p className="text-xs text-muted-foreground">
-              Browse long-term rentals and short stays with a compact, fast-scanning layout.
+              Browse verified long-term rentals and short stays with a cleaner, faster-scanning home experience.
             </p>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/houses" className={buttonVariants({ size: "lg" })}>
+                Browse houses
+              </Link>
+              <Link href="/houses?type=short_stay" className={buttonVariants({ variant: "outline", size: "lg" })}>
+                Explore short stays
+              </Link>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="rounded-md bg-muted px-2 py-2">
+            <div className="rounded-2xl bg-muted px-3 py-3">
               <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Rent</p>
               <p className="mt-1 font-semibold text-foreground">{rentListings.length}</p>
             </div>
-            <div className="rounded-md bg-muted px-2 py-2">
+            <div className="rounded-2xl bg-muted px-3 py-3">
               <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Short Stay</p>
               <p className="mt-1 font-semibold text-foreground">{shortStayListings.length}</p>
             </div>
-            <div className="rounded-md bg-muted px-2 py-2">
+            <div className="rounded-2xl bg-muted px-3 py-3">
               <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">All Houses</p>
               <p className="mt-1 font-semibold text-foreground">{listings.length}</p>
             </div>
@@ -44,10 +54,13 @@ export async function HomePageContent() {
       <ListingRail title="Rent" href="/houses?type=long_term" listings={rentListings} />
       <ListingRail title="Short Stay" href="/houses?type=short_stay" listings={shortStayListings} />
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-foreground">Categories</h2>
+      <section className="space-y-3 text-center">
+        <div className="space-y-1">
+          <h2 className="text-sm font-semibold text-foreground">Categories</h2>
+          <p className="text-xs text-muted-foreground">Browse the most practical home types in one tap.</p>
+        </div>
         <Suspense fallback={<div className="h-[108px] rounded-2xl border border-dashed border-border/70 bg-muted/20" />}>
-          <HouseTypeChips />
+          <HouseTypeChips className="justify-center" />
         </Suspense>
       </section>
 

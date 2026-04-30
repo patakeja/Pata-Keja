@@ -2,9 +2,15 @@
 
 import { useEffect, useRef } from "react";
 
-import { ensureBrowserPushSubscription, serializePushSubscription } from "@/lib/pushRegistration";
+import {
+  ensureBrowserPushSubscription,
+  getExistingBrowserPushSubscription,
+  removeBrowserPushSubscription,
+  serializePushSubscription
+} from "@/lib/pushRegistration";
 import { notificationService } from "@/lib/notificationService";
 import { useAuthStore } from "@/store";
+import { UserRole } from "@/types";
 
 export function PushRegistrationBridge() {
   const { status, user } = useAuthStore();
@@ -13,6 +19,27 @@ export function PushRegistrationBridge() {
   useEffect(() => {
     if (status !== "authenticated" || !user || typeof Notification === "undefined") {
       syncedUserIdRef.current = null;
+      return;
+    }
+
+    if (user.role === UserRole.TENANT) {
+      syncedUserIdRef.current = null;
+
+      void (async () => {
+        try {
+          const existingSubscription = await getExistingBrowserPushSubscription();
+
+          if (!existingSubscription) {
+            return;
+          }
+
+          await notificationService.removePushSubscription(existingSubscription.endpoint).catch(() => undefined);
+          await removeBrowserPushSubscription().catch(() => undefined);
+        } catch {
+          // Tenant devices should stay quietly out of push registration flows.
+        }
+      })();
+
       return;
     }
 

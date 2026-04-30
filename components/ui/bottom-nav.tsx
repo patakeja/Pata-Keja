@@ -4,12 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 
+import { buildLoginRedirect } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store";
 
 type BottomNavItem = {
   href: string;
   label: string;
   icon: ComponentType<{ className?: string }>;
+  requiresAuth?: boolean;
 };
 
 function HomeIcon({ className }: { className?: string }) {
@@ -42,8 +45,8 @@ function ProfileIcon({ className }: { className?: string }) {
 
 const navigationItems: BottomNavItem[] = [
   { href: "/", label: "Home", icon: HomeIcon },
-  { href: "/bookings", label: "Bookings", icon: BookingsIcon },
-  { href: "/profile", label: "Profile", icon: ProfileIcon }
+  { href: "/bookings", label: "Bookings", icon: BookingsIcon, requiresAuth: true },
+  { href: "/profile", label: "Profile", icon: ProfileIcon, requiresAuth: true }
 ];
 
 function isActivePath(pathname: string, href: string) {
@@ -56,8 +59,15 @@ function isActivePath(pathname: string, href: string) {
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { status } = useAuthStore();
 
-  if (pathname.startsWith("/auth/callback")) {
+  if (
+    pathname.startsWith("/auth/callback") ||
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/landlord")
+  ) {
     return null;
   }
 
@@ -67,11 +77,12 @@ export function BottomNav() {
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = isActivePath(pathname, item.href);
+          const href = item.requiresAuth && status !== "authenticated" ? buildLoginRedirect(item.href) : item.href;
 
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={href}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 rounded-md text-[10px] font-medium transition",
                 isActive ? "text-primary" : "text-muted-foreground"
