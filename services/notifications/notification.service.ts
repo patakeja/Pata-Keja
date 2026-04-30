@@ -201,7 +201,7 @@ export class NotificationService {
   subscribeToNotificationFeed(userId: string, onChange: () => void) {
     const client = this.clientFactory();
     const channel: RealtimeChannel = client
-      .channel(`notifications:${userId}`)
+      .channel(this.createNotificationChannelName(userId))
       .on(
         "postgres_changes",
         {
@@ -272,5 +272,9 @@ export class NotificationService {
     }
 
     return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
+  }
+
+  private createNotificationChannelName(userId: string) {
+    return `notifications:${userId}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
   }
 }
