@@ -11,6 +11,7 @@ import { UserRole } from "@/types";
 
 import { BrandLogo } from "./brand-logo";
 import { buttonVariants } from "./button";
+import { HomeTypewriterSearch } from "./home-typewriter-search";
 import { Input } from "./input";
 import { PageShell } from "./page-shell";
 
@@ -40,10 +41,14 @@ export function SiteHeader() {
                   {APP_NAME}
                 </p>
                 <p className="text-[11px] font-medium uppercase tracking-[0.34em] text-muted-foreground sm:text-xs">
-                  Rentals &amp; Short stays
+                  Rentals &amp; Short stays…
                 </p>
               </div>
             </Link>
+
+            <div className="flex w-full justify-center px-1">
+              <HomeTypewriterSearch />
+            </div>
 
             <div className="flex flex-wrap items-center justify-center gap-2">
               {status === "loading" ? (

@@ -21,7 +21,7 @@ export function BrandLogo({ className, imageClassName, fallbackClassName }: Bran
     <div className={cn("flex items-center justify-center", className)}>
       {!hasError ? (
         <img
-          src="/logo.png"
+          src="/logo/logo.png"
           alt={APP_NAME}
           className={cn(
             "h-11 w-auto object-contain transition-opacity",
