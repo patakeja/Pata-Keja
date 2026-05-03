@@ -45,6 +45,8 @@ type AuthStateChangePayload = {
 };
 
 export class AuthService {
+  private readonly pendingProfileResolutions = new Map<string, Promise<UserProfileResolution>>();
+
   constructor(private readonly clientFactory?: () => ServiceClient) {}
 
   getGuestContext(): AccessContext {
@@ -136,6 +138,10 @@ export class AuthService {
 
     if (!data.user) {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Supabase did not return a user after sign up.");
+    }
+
+    if (!data.session?.user) {
+      return this.buildProvisionalAuthenticatedUser(data.user, fullName, phone, role);
     }
 
     const persistedProfile = await this.ensureUserProfile(
@@ -253,12 +259,48 @@ export class AuthService {
     fallbackPhone?: string | null,
     fallbackRole: PersistedUserRole = UserRole.TENANT
   ): Promise<UserProfileResolution> {
+    const pendingResolution = this.pendingProfileResolutions.get(authUser.id);
+
+    if (pendingResolution) {
+      return pendingResolution;
+    }
+
+    // Multiple auth listeners can ask for the same profile at once.
+    const resolutionPromise = this.ensureUserProfileInternal(
+      authUser,
+      client,
+      fallbackFullName,
+      fallbackPhone,
+      fallbackRole
+    ).finally(() => {
+      if (this.pendingProfileResolutions.get(authUser.id) === resolutionPromise) {
+        this.pendingProfileResolutions.delete(authUser.id);
+      }
+    });
+
+    this.pendingProfileResolutions.set(authUser.id, resolutionPromise);
+
+    return resolutionPromise;
+  }
+
+  private async ensureUserProfileInternal(
+    authUser: User,
+    client?: ServiceClient,
+    fallbackFullName?: string,
+    fallbackPhone?: string | null,
+    fallbackRole: PersistedUserRole = UserRole.TENANT
+  ): Promise<UserProfileResolution> {
     const supabase = this.resolveClient(client);
     const resolvedFullName = fallbackFullName?.trim() || this.deriveFallbackFullName(authUser);
     const resolvedPhone =
       typeof fallbackPhone === "string" ? fallbackPhone.trim() || null : this.deriveFallbackPhone(authUser);
     const resolvedRole = fallbackRole === UserRole.ADMIN ? UserRole.TENANT : fallbackRole;
     const resolvedEmail = (authUser.email ?? "").trim().toLowerCase();
+
+    if (!resolvedEmail) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Authenticated user is missing an email address.");
+    }
+
     const existingProfile = await this.getUserProfileById(supabase, authUser.id);
 
     if (existingProfile) {
@@ -281,6 +323,26 @@ export class AuthService {
       };
     }
 
+    const conflictingEmailProfile = await this.getUserProfileByEmail(supabase, resolvedEmail);
+
+    if (conflictingEmailProfile && conflictingEmailProfile.id !== authUser.id) {
+      throw new ServiceError(
+        ServiceErrorCode.DATABASE_ERROR,
+        "This email address is already linked to a different user profile. Delete or fix the conflicting row in `public.users` before retrying."
+      );
+    }
+
+    if (resolvedPhone) {
+      const conflictingPhoneProfile = await this.getUserProfileByPhone(supabase, resolvedPhone);
+
+      if (conflictingPhoneProfile && conflictingPhoneProfile.id !== authUser.id) {
+        throw new ServiceError(
+          ServiceErrorCode.DATABASE_ERROR,
+          "This phone number is already linked to a different user profile. Update the conflicting row in `public.users` before retrying."
+        );
+      }
+    }
+
     const { error } = await supabase.from("users").upsert(
       {
         id: authUser.id,
@@ -295,6 +357,20 @@ export class AuthService {
     );
 
     if (error) {
+      const recoveredProfile = await this.recoverUserProfileAfterWriteFailure(
+        supabase,
+        authUser.id,
+        resolvedEmail,
+        resolvedPhone
+      );
+
+      if (recoveredProfile) {
+        return {
+          profile: recoveredProfile,
+          isNewUser: false
+        };
+      }
+
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to persist the user profile.", error);
     }
 
@@ -634,6 +710,34 @@ export class AuthService {
     return data as UserProfileRecord | null;
   }
 
+  private async getUserProfileByEmail(client: ServiceClient, email: string): Promise<UserProfileRecord | null> {
+    const { data, error } = await client
+      .from("users")
+      .select(this.userProfileSelect())
+      .eq("email", email)
+      .maybeSingle();
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to look up the user profile by email.", error);
+    }
+
+    return data as UserProfileRecord | null;
+  }
+
+  private async getUserProfileByPhone(client: ServiceClient, phone: string): Promise<UserProfileRecord | null> {
+    const { data, error } = await client
+      .from("users")
+      .select(this.userProfileSelect())
+      .eq("phone", phone)
+      .maybeSingle();
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to look up the user profile by phone.", error);
+    }
+
+    return data as UserProfileRecord | null;
+  }
+
   private async requireUserProfileById(client: ServiceClient, userId: string): Promise<UserProfileRecord> {
     const profile = await this.getUserProfileById(client, userId);
 
@@ -642,6 +746,63 @@ export class AuthService {
     }
 
     return profile;
+  }
+
+  private async recoverUserProfileAfterWriteFailure(
+    client: ServiceClient,
+    userId: string,
+    email: string,
+    phone: string | null
+  ): Promise<UserProfileRecord | null> {
+    const profileById = await this.getUserProfileById(client, userId);
+
+    if (profileById) {
+      return profileById;
+    }
+
+    const profileByEmail = await this.getUserProfileByEmail(client, email);
+
+    if (profileByEmail?.id === userId) {
+      return profileByEmail;
+    }
+
+    if (!phone) {
+      return null;
+    }
+
+    const profileByPhone = await this.getUserProfileByPhone(client, phone);
+
+    if (profileByPhone?.id === userId) {
+      return profileByPhone;
+    }
+
+    return null;
+  }
+
+  private buildProvisionalAuthenticatedUser(
+    authUser: User,
+    fullName: string,
+    phone: string | null,
+    role: PersistedUserRole
+  ): AuthenticatedUser {
+    if (!authUser.email) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Authenticated user is missing an email address.");
+    }
+
+    return {
+      id: authUser.id,
+      email: authUser.email,
+      fullName,
+      phone,
+      countyId: null,
+      countyName: null,
+      townId: null,
+      townName: null,
+      role,
+      provider: this.resolveIdentityProvider(authUser),
+      createdAt: authUser.created_at ?? new Date().toISOString(),
+      lastSignInAt: authUser.last_sign_in_at ?? null
+    };
   }
 
   private mapAuthenticatedUser(authUser: User, profile: UserProfileRecord): AuthenticatedUser {
