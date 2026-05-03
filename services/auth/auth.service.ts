@@ -861,7 +861,11 @@ export class AuthService {
       return metadataPhone.trim();
     }
 
-    return authUser.phone ?? null;
+    if (typeof authUser.phone === "string" && authUser.phone.trim()) {
+      return authUser.phone.trim();
+    }
+
+    return null;
   }
 
   private buildAuthCallbackUrl(
