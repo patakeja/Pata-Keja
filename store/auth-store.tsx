@@ -74,7 +74,7 @@ export function AuthStoreProvider({ children }: { children: ReactNode }) {
         const nextUser = await getCurrentUserWithProfile();
         applySnapshot(nextSession, nextUser, null);
       } catch {
-        applySessionRestoreSnapshot(nextSession, null);
+        applySnapshot(null, null, null);
       }
     } catch {
       if (sessionRef.current?.user) {

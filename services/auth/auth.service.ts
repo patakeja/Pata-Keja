@@ -141,6 +141,7 @@ export class AuthService {
     }
 
     if (!data.session?.user) {
+      this.syncAuthSnapshot(null);
       return this.buildProvisionalAuthenticatedUser(data.user, fullName, phone, role);
     }
 
@@ -167,7 +168,7 @@ export class AuthService {
     if (error) {
       throw new ServiceError(
         ServiceErrorCode.DATABASE_ERROR,
-        "Unable to sign in with the provided credentials.",
+        this.resolvePasswordSignInErrorMessage(error),
         error
       );
     }
@@ -803,6 +804,29 @@ export class AuthService {
       createdAt: authUser.created_at ?? new Date().toISOString(),
       lastSignInAt: authUser.last_sign_in_at ?? null
     };
+  }
+
+  private resolvePasswordSignInErrorMessage(error: unknown) {
+    const errorCode = this.readSupabaseErrorCode(error);
+
+    if (errorCode === "email_not_confirmed") {
+      return "Check your email and confirm your account before signing in.";
+    }
+
+    if (errorCode === "invalid_credentials") {
+      return "Email or password is incorrect.";
+    }
+
+    return "Unable to sign in with the provided credentials.";
+  }
+
+  private readSupabaseErrorCode(error: unknown) {
+    if (typeof error !== "object" || !error || !("code" in error)) {
+      return null;
+    }
+
+    const code = error.code;
+    return typeof code === "string" ? code : null;
   }
 
   private mapAuthenticatedUser(authUser: User, profile: UserProfileRecord): AuthenticatedUser {

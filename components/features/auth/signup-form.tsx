@@ -63,7 +63,7 @@ export function SignupForm() {
         return;
       }
 
-      setSuccessMessage("Account created. Check your email to continue to the next step.");
+      setSuccessMessage("Account created. Check your email and confirm your account before signing in.");
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
