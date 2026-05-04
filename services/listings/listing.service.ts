@@ -150,7 +150,8 @@ export class ListingService {
   async createListing(data: CreateListingInput): Promise<ListingRecord> {
     const client = this.clientFactory();
     const actor = await this.authService.requireRole([UserRole.LANDLORD, UserRole.ADMIN], client);
-    const payload = this.buildCreateListingPayload(data, actor.id);
+    const landlordId = await this.resolveCreateListingLandlordId(client, actor, data.landlordId);
+    const payload = this.buildCreateListingPayload(data, landlordId);
     const { data: createdListing, error } = await client.from("listings").insert(payload).select("id").single();
 
     if (error) {
@@ -164,6 +165,27 @@ export class ListingService {
     }
 
     return createdRecord;
+  }
+
+  async deleteListing(listingId: string): Promise<void> {
+    const client = this.clientFactory();
+    const actor = await this.authService.requireRole([UserRole.LANDLORD, UserRole.ADMIN], client);
+    const existingListing = await this.requireManagedListing(client, listingId, actor);
+    const imagePaths = this.getOrderedImagePaths(existingListing);
+
+    const { error } = await client.from("listings").delete().eq("id", listingId);
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to delete the listing.", error);
+    }
+
+    if (imagePaths.length > 0) {
+      try {
+        await this.imageService.deleteListingImages(imagePaths);
+      } catch {
+        // Ignore storage cleanup failures after the listing row is already gone.
+      }
+    }
   }
 
   async updateListing(listingId: string, input: UpdateListingInput): Promise<ListingRecord> {
@@ -675,6 +697,38 @@ export class ListingService {
     }
 
     return data;
+  }
+
+  private async resolveCreateListingLandlordId(
+    client: ServiceClient,
+    actor: AuthenticatedUser,
+    requestedLandlordId?: string
+  ) {
+    if (actor.role !== UserRole.ADMIN) {
+      return actor.id;
+    }
+
+    const normalizedLandlordId = requestedLandlordId?.trim();
+
+    if (!normalizedLandlordId) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Select a landlord before publishing the house.");
+    }
+
+    const { data, error } = await client
+      .from("users")
+      .select("id, role")
+      .eq("id", normalizedLandlordId)
+      .maybeSingle();
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to validate the selected landlord.", error);
+    }
+
+    if (!data || data.role !== UserRole.LANDLORD) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Select a valid landlord profile before publishing.");
+    }
+
+    return data.id;
   }
 
   private async requireManagedListing(client: ServiceClient, listingId: string, actor: AuthenticatedUser) {

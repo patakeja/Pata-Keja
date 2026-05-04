@@ -136,6 +136,7 @@ export type CreateListingInput = {
   price: number;
   listingType: ListingType;
   houseType: HouseType;
+  landlordId?: string;
   countyId: number;
   townId: number;
   areaId: number;

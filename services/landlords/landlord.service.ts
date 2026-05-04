@@ -106,15 +106,25 @@ export class LandlordService {
     const client = this.clientFactory();
     const actor = await this.authService.requireRole([UserRole.LANDLORD, UserRole.ADMIN], client);
     const listings = await this.listingService.getListings({
-      landlordId: actor.id,
-      limit: 200,
+      landlordId: actor.role === UserRole.ADMIN ? undefined : actor.id,
+      limit: actor.role === UserRole.ADMIN ? 500 : 200,
       page: 1
     });
+    const landlordProfiles = await this.getLandlordProfilesByIds(
+      client,
+      listings.map((listing) => listing.landlordId)
+    );
 
-    return listings.map((listing) => ({
-      ...listing,
-      needsImageRefresh: this.needsImageRefresh(listing.lastImageUpdateAt)
-    }));
+    return listings.map((listing) => {
+      const landlordProfile = landlordProfiles.get(listing.landlordId);
+
+      return {
+        ...listing,
+        needsImageRefresh: this.needsImageRefresh(listing.lastImageUpdateAt),
+        landlordName: landlordProfile?.fullName ?? null,
+        landlordPhone: landlordProfile?.phone ?? null
+      };
+    });
   }
 
   async getHouseById(listingId: string): Promise<LandlordHouseRecord> {
@@ -124,7 +134,9 @@ export class LandlordService {
 
     return {
       ...listing,
-      needsImageRefresh: this.needsImageRefresh(listing.lastImageUpdateAt)
+      needsImageRefresh: this.needsImageRefresh(listing.lastImageUpdateAt),
+      landlordName: listing.landlord?.fullName ?? null,
+      landlordPhone: listing.landlord?.phone ?? null
     };
   }
 
@@ -188,8 +200,14 @@ export class LandlordService {
 
     return {
       ...updatedListing,
-      needsImageRefresh: this.needsImageRefresh(updatedListing.lastImageUpdateAt)
+      needsImageRefresh: this.needsImageRefresh(updatedListing.lastImageUpdateAt),
+      landlordName: updatedListing.landlord?.fullName ?? null,
+      landlordPhone: updatedListing.landlord?.phone ?? null
     };
+  }
+
+  async deleteHouse(listingId: string): Promise<void> {
+    await this.listingService.deleteListing(listingId);
   }
 
   async getPlatformBookingOptions(listingId: string): Promise<PlatformBookingOption[]> {
@@ -281,10 +299,39 @@ export class LandlordService {
     return {
       listing: {
         ...updatedListing,
-        needsImageRefresh: this.needsImageRefresh(updatedListing.lastImageUpdateAt)
+        needsImageRefresh: this.needsImageRefresh(updatedListing.lastImageUpdateAt),
+        landlordName: updatedListing.landlord?.fullName ?? null,
+        landlordPhone: updatedListing.landlord?.phone ?? null
       },
       rentalEvent: this.mapRentalEvent(rentalEvent)
     };
+  }
+
+  private async getLandlordProfilesByIds(client: ServiceClient, landlordIds: string[]) {
+    const uniqueLandlordIds = [...new Set(landlordIds.filter(Boolean))];
+
+    if (uniqueLandlordIds.length === 0) {
+      return new Map<string, { fullName: string; phone: string | null }>();
+    }
+
+    const { data, error } = await client
+      .from("users")
+      .select("id, full_name, phone")
+      .in("id", uniqueLandlordIds);
+
+    if (error) {
+      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to load landlord profiles.", error);
+    }
+
+    return new Map(
+      (data ?? []).map((row) => [
+        row.id,
+        {
+          fullName: row.full_name,
+          phone: row.phone
+        }
+      ])
+    );
   }
 
   private async requireManagedListing(listingId: string, actor: AuthenticatedUser) {

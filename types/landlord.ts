@@ -17,10 +17,14 @@ export type LandlordDashboardSummary = {
 
 export type LandlordHouseSummary = ListingSummary & {
   needsImageRefresh: boolean;
+  landlordName: string | null;
+  landlordPhone: string | null;
 };
 
 export type LandlordHouseRecord = ListingRecord & {
   needsImageRefresh: boolean;
+  landlordName: string | null;
+  landlordPhone: string | null;
 };
 
 export type UpdateLandlordListingInput = {

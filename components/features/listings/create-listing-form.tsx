@@ -4,6 +4,7 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import { houseTypeLabels, listingTypeLabels } from "@/config/listingPresentation";
+import { adminService } from "@/lib/adminService";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { listingPublishingService } from "@/lib/listingPublishingService";
 import { listingService } from "@/lib/listingService";
@@ -11,8 +12,11 @@ import { cn } from "@/lib/utils";
 import {
   HouseType,
   ListingType,
+  UserRole,
+  type AdminUserRoleEntry,
   type CreateListingInput,
   type ListingLocationCatalog,
+  type ListingRecord,
   type ListingPublishProgress
 } from "@/types";
 
@@ -27,9 +31,12 @@ type CreateListingFormProps = {
   title: string;
   description: string;
   catalogRefreshToken?: number;
+  redirectOnSuccess?: boolean;
+  onCreated?: (listing: ListingRecord) => void | Promise<void>;
 };
 
 type ListingFormState = {
+  landlordId: string;
   title: string;
   description: string;
   listingType: ListingType;
@@ -52,23 +59,26 @@ const inputClassName =
 const textareaClassName =
   "flex min-h-28 w-full rounded-xl border border-input bg-white px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
 
-const initialFormState: ListingFormState = {
-  title: "",
-  description: "",
-  listingType: ListingType.LONG_TERM,
-  houseType: HouseType.ONE_BEDROOM,
-  price: "",
-  countyId: "",
-  townId: "",
-  areaId: "",
-  totalUnits: "1",
-  availableUnits: "1",
-  depositAmount: "0",
-  holdDurationHours: "72",
-  availableFrom: "",
-  mapsLink: "",
-  isActive: true
-};
+function buildInitialFormState(landlordId = ""): ListingFormState {
+  return {
+    landlordId,
+    title: "",
+    description: "",
+    listingType: ListingType.LONG_TERM,
+    houseType: HouseType.ONE_BEDROOM,
+    price: "",
+    countyId: "",
+    townId: "",
+    areaId: "",
+    totalUnits: "1",
+    availableUnits: "1",
+    depositAmount: "0",
+    holdDurationHours: "72",
+    availableFrom: "",
+    mapsLink: "",
+    isActive: true
+  };
+}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -92,6 +102,7 @@ function parseOptionalNumber(value: string) {
 
 function buildCreateListingInput(state: ListingFormState): CreateListingInput {
   return {
+    landlordId: state.landlordId.trim() || undefined,
     title: state.title,
     description: state.description,
     price: Number.parseFloat(state.price),
@@ -114,17 +125,21 @@ export function CreateListingForm({
   workspaceLabel,
   title,
   description,
-  catalogRefreshToken = 0
+  catalogRefreshToken = 0,
+  redirectOnSuccess = true,
+  onCreated
 }: CreateListingFormProps) {
   const router = useRouter();
-  const [formState, setFormState] = useState<ListingFormState>(initialFormState);
+  const [formState, setFormState] = useState<ListingFormState>(() => buildInitialFormState());
   const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [landlordOptions, setLandlordOptions] = useState<AdminUserRoleEntry[]>([]);
   const [catalog, setCatalog] = useState<ListingLocationCatalog>({
     counties: [],
     towns: [],
     areas: []
   });
   const [isLocationLoading, setIsLocationLoading] = useState(true);
+  const [isLandlordLoading, setIsLandlordLoading] = useState(workspaceLabel === "Admin");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [progress, setProgress] = useState<ListingPublishProgress | null>(null);
@@ -140,6 +155,7 @@ export function CreateListingForm({
   const availableAreas = Number.isFinite(selectedTownId)
     ? catalog.areas.filter((area) => area.townId === selectedTownId)
     : catalog.areas;
+  const requiresLandlordSelection = workspaceLabel === "Admin";
 
   useEffect(() => {
     let isMounted = true;
@@ -173,6 +189,52 @@ export function CreateListingForm({
       isMounted = false;
     };
   }, [catalogRefreshToken, isSupabaseReady]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLandlordOptions() {
+      if (!isSupabaseReady || workspaceLabel !== "Admin") {
+        setIsLandlordLoading(false);
+        return;
+      }
+
+      try {
+        const userDirectory = await adminService.getUserRoleDirectory();
+        const landlords = userDirectory
+          .filter((entry) => entry.role === UserRole.LANDLORD)
+          .sort((left, right) => left.fullName.localeCompare(right.fullName));
+
+        if (isMounted) {
+          setLandlordOptions(landlords);
+          setFormState((currentState) => {
+            if (currentState.landlordId && landlords.some((landlord) => landlord.id === currentState.landlordId)) {
+              return currentState;
+            }
+
+            return {
+              ...currentState,
+              landlordId: landlords[0]?.id ?? ""
+            };
+          });
+        }
+      } catch (landlordError) {
+        if (isMounted) {
+          setError(getErrorMessage(landlordError));
+        }
+      } finally {
+        if (isMounted) {
+          setIsLandlordLoading(false);
+        }
+      }
+    }
+
+    void loadLandlordOptions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isSupabaseReady, workspaceLabel]);
 
   function updateField<Key extends keyof ListingFormState>(key: Key, value: ListingFormState[Key]) {
     setFormState((currentState) => ({
@@ -224,6 +286,17 @@ export function CreateListingForm({
         }
       );
 
+      if (!redirectOnSuccess) {
+        const retainedLandlordId = requiresLandlordSelection ? formState.landlordId : "";
+        setFormState(buildInitialFormState(retainedLandlordId));
+        setImageFiles([]);
+        setProgress(null);
+        setSuccess("House created successfully.");
+        await onCreated?.(createdListing);
+        return;
+      }
+
+      await onCreated?.(createdListing);
       setSuccess("Listing published successfully. Redirecting to the live detail page...");
       router.replace(`/listing/${createdListing.id}`);
     } catch (submitError) {
@@ -258,6 +331,12 @@ export function CreateListingForm({
             </p>
           ) : null}
 
+          {requiresLandlordSelection && !isLandlordLoading && landlordOptions.length === 0 ? (
+            <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+              No landlord accounts are available yet. Assign landlord access in the admin users area before publishing houses.
+            </p>
+          ) : null}
+
           {success ? <p className="text-[11px] text-emerald-700">{success}</p> : null}
           {error ? <p className="text-[11px] text-rose-700">{error}</p> : null}
           {progress ? <p className="text-[11px] text-primary">{progress.message}</p> : null}
@@ -266,6 +345,31 @@ export function CreateListingForm({
 
       <Card>
         <CardContent className="grid gap-3 md:grid-cols-2">
+          {requiresLandlordSelection ? (
+            <div className="space-y-2 md:col-span-2">
+              <label htmlFor="listing-landlord" className="text-[11px] font-medium text-foreground">
+                Assigned landlord
+              </label>
+              <select
+                id="listing-landlord"
+                className={inputClassName}
+                value={formState.landlordId}
+                onChange={(event) => updateField("landlordId", event.target.value)}
+                disabled={isSubmitting || !isSupabaseReady || isLandlordLoading || landlordOptions.length === 0}
+                required
+              >
+                <option value="">
+                  {landlordOptions.length > 0 ? "Select landlord" : "No landlord accounts available yet"}
+                </option>
+                {landlordOptions.map((landlord) => (
+                  <option key={landlord.id} value={landlord.id}>
+                    {landlord.fullName} ({landlord.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           <div className="space-y-2 md:col-span-2">
             <label htmlFor="listing-title" className="text-[11px] font-medium text-foreground">
               Title
@@ -567,6 +671,7 @@ export function CreateListingForm({
             isSubmitting ||
             !isSupabaseReady ||
             isLocationLoading ||
+            (requiresLandlordSelection && (isLandlordLoading || landlordOptions.length === 0 || !formState.landlordId)) ||
             catalog.counties.length === 0 ||
             availableAreas.length === 0
           }
