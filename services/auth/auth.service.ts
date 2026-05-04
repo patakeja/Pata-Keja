@@ -133,7 +133,11 @@ export class AuthService {
     });
 
     if (error) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to create account.", error);
+      throw new ServiceError(
+        ServiceErrorCode.DATABASE_ERROR,
+        this.resolveSignUpErrorMessage(error),
+        error
+      );
     }
 
     if (!data.user) {
@@ -818,6 +822,28 @@ export class AuthService {
     }
 
     return "Unable to sign in with the provided credentials.";
+  }
+
+  private resolveSignUpErrorMessage(error: unknown) {
+    const errorCode = this.readSupabaseErrorCode(error);
+
+    if (errorCode === "over_email_send_rate_limit") {
+      return "Too many confirmation emails were requested. Wait a minute, then try creating the account again.";
+    }
+
+    if (errorCode === "email_address_invalid") {
+      return "Enter a valid email address.";
+    }
+
+    if (errorCode === "weak_password") {
+      return "Choose a stronger password and try again.";
+    }
+
+    if (errorCode === "user_already_exists") {
+      return "An account with that email already exists. Sign in instead, or confirm the account from your email inbox.";
+    }
+
+    return "Unable to create account.";
   }
 
   private readSupabaseErrorCode(error: unknown) {

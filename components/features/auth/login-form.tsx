@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ToastMessage } from "@/components/ui/toast-message";
+import { EMAIL_PASSWORD_SIGNUP_ENABLED, GOOGLE_AUTH_IS_PRIMARY } from "@/config/auth-ui";
 import { resolveSafeAppPath, signIn, signInWithGoogle } from "@/lib/auth";
 import { useAuthStore } from "@/store";
 import { RestrictedAction } from "@/types";
@@ -96,63 +97,68 @@ export function LoginForm() {
     <AuthFormShell
       eyebrow="Manyumba Access"
       title="Welcome back"
-      description="Sign in with email or Google to pick up your bookings, messages, saved preferences, and landlord tools."
+      description={
+        GOOGLE_AUTH_IS_PRIMARY
+          ? "Continue with Google first, or use email if you already have an account."
+          : "Sign in with email or Google to pick up your bookings, messages, saved preferences, and landlord tools."
+      }
     >
       {error ? <ToastMessage message={error} /> : null}
       {intentCopy && intentLabel ? <Badge>{intentLabel}</Badge> : null}
       {intentCopy ? <p className="text-xs text-muted-foreground">{intentCopy}</p> : null}
 
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <div className="space-y-2">
-          <label htmlFor="email" className="text-sm font-medium text-foreground">
-            Email
-          </label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="you@example.com"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            disabled={isSubmitting || isGoogleLoading}
-            required
-          />
+      <div className="space-y-4">
+        <Button className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isSubmitting || isGoogleLoading}>
+          {isGoogleLoading ? "Redirecting to Google..." : "Continue with Google"}
+        </Button>
+
+        <div className="flex items-center gap-3 text-xs uppercase tracking-[0.24em] text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          <span>Existing email account</span>
+          <span className="h-px flex-1 bg-border" />
         </div>
-        <div className="space-y-2">
-          <label htmlFor="password" className="text-sm font-medium text-foreground">
-            Password
-          </label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="Enter your password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={isSubmitting || isGoogleLoading}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Button className="w-full" type="submit" disabled={isSubmitting || isGoogleLoading}>
-            {isSubmitting ? "Signing in..." : "Sign in"}
+
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <label htmlFor="email" className="text-sm font-medium text-foreground">
+              Email
+            </label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={isSubmitting || isGoogleLoading}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="password" className="text-sm font-medium text-foreground">
+              Password
+            </label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              disabled={isSubmitting || isGoogleLoading}
+              required
+            />
+          </div>
+          <Button className="w-full" variant="outline" type="submit" disabled={isSubmitting || isGoogleLoading}>
+            {isSubmitting ? "Signing in..." : "Sign in with email"}
           </Button>
-          <Button
-            className="w-full"
-            variant="outline"
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={isSubmitting || isGoogleLoading}
-          >
-            {isGoogleLoading ? "Redirecting to Google..." : "Continue with Google"}
-          </Button>
-        </div>
-      </form>
+        </form>
+      </div>
 
       <p className="text-sm text-muted-foreground">
         New here?{" "}
         <Link href={`/signup?redirectTo=${encodeURIComponent(safeRedirectTo)}`} className="font-medium text-primary hover:text-primary/80">
-          Create a Manyumba account
+          {EMAIL_PASSWORD_SIGNUP_ENABLED ? "Create a Manyumba account" : "Create an account with Google"}
         </Link>
       </p>
     </AuthFormShell>

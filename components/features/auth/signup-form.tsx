@@ -7,6 +7,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ToastMessage } from "@/components/ui/toast-message";
+import { EMAIL_PASSWORD_SIGNUP_ENABLED } from "@/config/auth-ui";
 import { getSession, resolveSafeAppPath, signInWithGoogle, signUp } from "@/lib/auth";
 import { useAuthStore } from "@/store";
 
@@ -87,85 +88,100 @@ export function SignupForm() {
   return (
     <AuthFormShell
       eyebrow="Join Manyumba"
-      title="Create your account"
-      description="Set up your Manyumba account once, then return straight to the booking, listing, or chat flow you came from."
+      title={EMAIL_PASSWORD_SIGNUP_ENABLED ? "Create your account" : "Continue with Google"}
+      description={
+        EMAIL_PASSWORD_SIGNUP_ENABLED
+          ? "Set up your Manyumba account once, then return straight to the booking, listing, or chat flow you came from."
+          : "Google is the active signup path for now. Email signup is hidden until auth email delivery moves to a paid Supabase plan."
+      }
     >
       {error ? <ToastMessage message={error} /> : null}
       {successMessage ? <ToastMessage message={successMessage} tone="success" /> : null}
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <div className="space-y-2">
-          <label htmlFor="fullName" className="text-sm font-medium text-foreground">
-            Full name
-          </label>
-          <Input
-            id="fullName"
-            placeholder="Your name"
-            autoComplete="name"
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
-            disabled={isSubmitting || isGoogleLoading}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="phone" className="text-sm font-medium text-foreground">
-            Phone number
-          </label>
-          <Input
-            id="phone"
-            type="tel"
-            placeholder="+2547..."
-            autoComplete="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            disabled={isSubmitting || isGoogleLoading}
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="signup-email" className="text-sm font-medium text-foreground">
-            Email
-          </label>
-          <Input
-            id="signup-email"
-            type="email"
-            placeholder="you@example.com"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            disabled={isSubmitting || isGoogleLoading}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="signup-password" className="text-sm font-medium text-foreground">
-            Password
-          </label>
-          <Input
-            id="signup-password"
-            type="password"
-            placeholder="Create a password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={isSubmitting || isGoogleLoading}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Button className="w-full" type="submit" disabled={isSubmitting || isGoogleLoading}>
-            {isSubmitting ? "Creating account..." : "Create Account"}
-          </Button>
-          <Button
-            className="w-full"
-            variant="outline"
-            type="button"
-            onClick={handleGoogleSignUp}
-            disabled={isSubmitting || isGoogleLoading}
-          >
+      {EMAIL_PASSWORD_SIGNUP_ENABLED ? (
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <label htmlFor="fullName" className="text-sm font-medium text-foreground">
+              Full name
+            </label>
+            <Input
+              id="fullName"
+              placeholder="Your name"
+              autoComplete="name"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              disabled={isSubmitting || isGoogleLoading}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="phone" className="text-sm font-medium text-foreground">
+              Phone number
+            </label>
+            <Input
+              id="phone"
+              type="tel"
+              placeholder="+2547..."
+              autoComplete="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              disabled={isSubmitting || isGoogleLoading}
+            />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="signup-email" className="text-sm font-medium text-foreground">
+              Email
+            </label>
+            <Input
+              id="signup-email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={isSubmitting || isGoogleLoading}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="signup-password" className="text-sm font-medium text-foreground">
+              Password
+            </label>
+            <Input
+              id="signup-password"
+              type="password"
+              placeholder="Create a password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              disabled={isSubmitting || isGoogleLoading}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Button className="w-full" type="submit" disabled={isSubmitting || isGoogleLoading}>
+              {isSubmitting ? "Creating account..." : "Create Account"}
+            </Button>
+            <Button
+              className="w-full"
+              variant="outline"
+              type="button"
+              onClick={handleGoogleSignUp}
+              disabled={isSubmitting || isGoogleLoading}
+            >
+              {isGoogleLoading ? "Redirecting to Google..." : "Continue with Google"}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div className="space-y-4">
+          <Button className="w-full" type="button" onClick={handleGoogleSignUp} disabled={isGoogleLoading}>
             {isGoogleLoading ? "Redirecting to Google..." : "Continue with Google"}
           </Button>
+          <p className="rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-3 text-sm leading-6 text-muted-foreground">
+            Email signup is hidden for now so we do not run into free-plan confirmation email limits.
+          </p>
         </div>
-      </form>
+      )}
 
       <p className="text-sm text-muted-foreground">
         Already have an account?{" "}

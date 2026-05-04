@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { LogoutButton } from "@/components/features/auth/logout-button";
 import { APP_NAME } from "@/config/app";
+import { EMAIL_PASSWORD_SIGNUP_ENABLED } from "@/config/auth-ui";
 import { getRoleHomePath } from "@/lib/auth";
 import { useAuthStore } from "@/store";
 import { UserRole } from "@/types";
@@ -24,6 +25,7 @@ export function SiteHeader() {
   const isHomePage = pathname === "/";
   const primaryActionLabel =
     user?.role === UserRole.LANDLORD ? "Landlord Portal" : user?.role === UserRole.ADMIN ? "Admin Portal" : "Bookings";
+  const createAccountLabel = EMAIL_PASSWORD_SIGNUP_ENABLED ? "Create account" : "Create account with Google";
 
   if (isHomePage) {
     return (
@@ -74,7 +76,7 @@ export function SiteHeader() {
                     Sign in
                   </Link>
                   <Link href="/signup" className={buttonVariants({ size: "md" })}>
-                    Create account
+                    {createAccountLabel}
                   </Link>
                 </>
               ) : null}
@@ -145,7 +147,7 @@ export function SiteHeader() {
                 Sign in
               </Link>
               <Link href="/signup" className={buttonVariants({ size: "md" })}>
-                Create account
+                {createAccountLabel}
               </Link>
             </>
           ) : null}
