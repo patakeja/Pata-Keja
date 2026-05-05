@@ -151,11 +151,29 @@ export class ListingService {
     const client = this.clientFactory();
     const actor = await this.authService.requireRole([UserRole.LANDLORD, UserRole.ADMIN], client);
     const landlordId = await this.resolveCreateListingLandlordId(client, actor, data.landlordId);
-    const payload = this.buildCreateListingPayload(data, landlordId);
+    const shouldActivateAfterCreate = typeof data.isActive === "boolean" ? data.isActive : true;
+    const payload = this.buildCreateListingPayload(
+      {
+        ...data,
+        isActive: false
+      },
+      landlordId
+    );
     const { data: createdListing, error } = await client.from("listings").insert(payload).select("id").single();
 
     if (error) {
       throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to create the listing.", error);
+    }
+
+    if (shouldActivateAfterCreate) {
+      const { error: activationError } = await client
+        .from("listings")
+        .update({ is_active: true })
+        .eq("id", createdListing.id);
+
+      if (activationError) {
+        throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to activate the listing.", activationError);
+      }
     }
 
     const createdRecord = await this.getListingById(createdListing.id);
