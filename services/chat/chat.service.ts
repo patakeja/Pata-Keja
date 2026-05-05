@@ -595,7 +595,8 @@ export class ChatService {
         { conversation_id: conversationId, user_id: landlordId }
       ],
       {
-        onConflict: "conversation_id,user_id"
+        onConflict: "conversation_id,user_id",
+        ignoreDuplicates: true
       }
     );
 
