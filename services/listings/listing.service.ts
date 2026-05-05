@@ -362,6 +362,11 @@ export class ListingService {
 
     const totalUnits = this.normalizePositiveInteger(data.totalUnits, DEFAULT_LISTING_TOTAL_UNITS, "Total units");
     const availableUnits = this.normalizeAvailableUnits(data.availableUnits, totalUnits);
+    const bookingCapacityPerUnit = this.normalizePositiveInteger(
+      data.bookingCapacityPerUnit,
+      1,
+      "Booking capacity per unit"
+    );
     const holdDurationHours = this.normalizePositiveInteger(
       data.holdDurationHours,
       DEFAULT_BOOKING_HOLD_DURATION_HOURS,
@@ -381,6 +386,7 @@ export class ListingService {
       area_id: data.areaId,
       total_units: totalUnits,
       available_units: availableUnits,
+      booking_capacity_per_unit: bookingCapacityPerUnit,
       deposit_amount: depositAmount,
       hold_duration_hours: holdDurationHours,
       available_from: this.normalizeAvailableFrom(data.availableFrom),
@@ -415,6 +421,11 @@ export class ListingService {
       typeof input.availableUnits === "number" ? input.availableUnits : existingListing.available_units,
       nextTotalUnits
     );
+    const nextBookingCapacityPerUnit = this.normalizePositiveInteger(
+      input.bookingCapacityPerUnit,
+      existingListing.booking_capacity_per_unit,
+      "Booking capacity per unit"
+    );
     const nextPrice = this.normalizeNonNegativeNumber(input.price, this.toNumber(existingListing.price), "Price");
     const nextDepositAmount = this.normalizeNonNegativeNumber(
       input.depositAmount,
@@ -433,6 +444,7 @@ export class ListingService {
       price: nextPrice,
       total_units: nextTotalUnits,
       available_units: nextAvailableUnits,
+      booking_capacity_per_unit: nextBookingCapacityPerUnit,
       deposit_amount: nextDepositAmount,
       hold_duration_hours: nextHoldDurationHours,
       available_from: this.normalizeAvailableFrom(
@@ -469,6 +481,7 @@ export class ListingService {
       areaName: row.area?.name ?? "",
       totalUnits: this.toNumber(row.total_units),
       availableUnits: this.toNumber(row.available_units),
+      bookingCapacityPerUnit: this.toNumber(row.booking_capacity_per_unit),
       maxActiveBookings: this.toNumber(row.max_active_bookings),
       depositAmount: this.toNumber(row.deposit_amount),
       holdDurationHours: this.toNumber(row.hold_duration_hours),

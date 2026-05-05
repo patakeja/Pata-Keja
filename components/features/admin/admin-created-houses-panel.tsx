@@ -190,7 +190,8 @@ export function AdminCreatedHousesPanel({
       const result = await landlordService.markHouseAsRented({
         listingId: rentListingId,
         source: payload.source,
-        bookingId: payload.bookingId,
+        bookingIds: payload.bookingIds,
+        unitsCount: payload.unitsCount,
         notes: payload.notes
       });
 
@@ -458,6 +459,8 @@ export function AdminCreatedHousesPanel({
         isSaving={isMarkingRented}
         isLoadingOptions={isRentOptionsLoading}
         error={rentError}
+        availableUnits={houses.find((house) => house.id === rentListingId)?.availableUnits ?? 0}
+        bookingCapacityPerUnit={houses.find((house) => house.id === rentListingId)?.bookingCapacityPerUnit ?? 1}
         platformBookings={platformBookings}
         onClose={() => {
           setRentListingId(null);

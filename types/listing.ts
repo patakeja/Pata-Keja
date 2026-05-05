@@ -102,6 +102,7 @@ export type ListingSummary = {
   areaName: string;
   totalUnits: number;
   availableUnits: number;
+  bookingCapacityPerUnit: number;
   maxActiveBookings: number;
   depositAmount: number;
   holdDurationHours: number;
@@ -142,6 +143,7 @@ export type CreateListingInput = {
   areaId: number;
   totalUnits?: number;
   availableUnits?: number;
+  bookingCapacityPerUnit?: number;
   depositAmount?: number;
   holdDurationHours?: number;
   availableFrom?: string | null;
@@ -157,6 +159,7 @@ export type UpdateListingInput = {
   price?: number;
   totalUnits?: number;
   availableUnits?: number;
+  bookingCapacityPerUnit?: number;
   depositAmount?: number;
   holdDurationHours?: number;
   availableFrom?: string | null;

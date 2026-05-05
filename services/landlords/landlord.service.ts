@@ -227,29 +227,32 @@ export class LandlordService {
     const client = this.clientFactory();
     const actor = await this.authService.requireRole([UserRole.LANDLORD, UserRole.ADMIN], client);
     const listing = await this.requireManagedListing(input.listingId, actor);
+    const unitsCount = this.normalizeUnitsCount(input.unitsCount, listing.availableUnits);
 
     if (listing.availableUnits < 1) {
       throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "This house has no available units to allocate.");
     }
 
-    let linkedBookingId: string | null = null;
+    let rentalEvents: RentalEventRow[] = [];
 
     if (input.source === RentalSource.PLATFORM) {
-      if (!input.bookingId) {
+      const normalizedBookingIds = [...new Set((input.bookingIds ?? []).map((bookingId) => bookingId.trim()).filter(Boolean))];
+
+      if (normalizedBookingIds.length !== unitsCount) {
         throw new ServiceError(
           ServiceErrorCode.VALIDATION_ERROR,
-          "Select the linked booking before marking the house as rented."
+          `Select exactly ${unitsCount} linked booking${unitsCount === 1 ? "" : "s"} before marking the house as rented.`
         );
       }
 
       const bookingOptions = await this.bookingService.getListingBookings(input.listingId);
-      const matchedBooking = bookingOptions.find((booking) => booking.id === input.bookingId);
+      const matchedBookings = bookingOptions.filter((booking) => normalizedBookingIds.includes(booking.id));
 
-      if (!matchedBooking) {
-        throw new ServiceError(ServiceErrorCode.NOT_FOUND, "The selected booking was not found for this listing.");
+      if (matchedBookings.length !== normalizedBookingIds.length) {
+        throw new ServiceError(ServiceErrorCode.NOT_FOUND, "One or more selected bookings were not found for this listing.");
       }
 
-      if (matchedBooking.status !== BookingStatus.ACTIVE) {
+      if (matchedBookings.some((booking) => booking.status !== BookingStatus.ACTIVE)) {
         throw new ServiceError(
           ServiceErrorCode.VALIDATION_ERROR,
           "Only active booking queue entries can be linked to a platform rental."
@@ -262,7 +265,7 @@ export class LandlordService {
           status: BookingStatus.COMPLETED,
           expires_at: null
         })
-        .eq("id", matchedBooking.id);
+        .in("id", matchedBookings.map((booking) => booking.id));
 
       if (bookingUpdateError) {
         throw new ServiceError(
@@ -272,28 +275,50 @@ export class LandlordService {
         );
       }
 
-      linkedBookingId = matchedBooking.id;
-    }
+      const { data: createdRentalEvents, error: rentalEventError } = await client
+        .from("rental_events")
+        .insert(
+          matchedBookings.map((booking) => ({
+            listing_id: listing.id,
+            landlord_id: listing.landlordId,
+            booking_id: booking.id,
+            units_count: 1,
+            source: input.source,
+            notes: input.notes?.trim() || null,
+            admin_review_required: false
+          }))
+        )
+        .select("*");
 
-    const { data: rentalEvent, error: rentalEventError } = await client
-      .from("rental_events")
-      .insert({
-        listing_id: listing.id,
-        landlord_id: listing.landlordId,
-        booking_id: linkedBookingId,
-        source: input.source,
-        notes: input.notes?.trim() || null,
-        admin_review_required: input.source === RentalSource.EXTERNAL
-      })
-      .select("*")
-      .single();
+      if (rentalEventError) {
+        throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to log the rental event.", rentalEventError);
+      }
 
-    if (rentalEventError) {
-      throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to log the rental event.", rentalEventError);
+      rentalEvents = createdRentalEvents ?? [];
+    } else {
+      const { data: createdRentalEvent, error: rentalEventError } = await client
+        .from("rental_events")
+        .insert({
+          listing_id: listing.id,
+          landlord_id: listing.landlordId,
+          booking_id: null,
+          units_count: unitsCount,
+          source: input.source,
+          notes: input.notes?.trim() || null,
+          admin_review_required: true
+        })
+        .select("*")
+        .single();
+
+      if (rentalEventError) {
+        throw new ServiceError(ServiceErrorCode.DATABASE_ERROR, "Unable to log the rental event.", rentalEventError);
+      }
+
+      rentalEvents = createdRentalEvent ? [createdRentalEvent] : [];
     }
 
     const updatedListing = await this.listingService.updateListing(listing.id, {
-      availableUnits: Math.max(0, listing.availableUnits - 1)
+      availableUnits: Math.max(0, listing.availableUnits - unitsCount)
     });
 
     return {
@@ -303,7 +328,7 @@ export class LandlordService {
         landlordName: updatedListing.landlord?.fullName ?? null,
         landlordPhone: updatedListing.landlord?.phone ?? null
       },
-      rentalEvent: this.mapRentalEvent(rentalEvent)
+      rentalEvents: rentalEvents.map((rentalEvent) => this.mapRentalEvent(rentalEvent))
     };
   }
 
@@ -370,6 +395,7 @@ export class LandlordService {
       listingId: row.listing_id,
       landlordId: row.landlord_id,
       bookingId: row.booking_id,
+      unitsCount: row.units_count,
       source: row.source,
       notes: row.notes,
       adminReviewRequired: row.admin_review_required,
@@ -401,6 +427,25 @@ export class LandlordService {
       .slice(0, 10);
 
     return availableFrom > todayIso;
+  }
+
+  private normalizeUnitsCount(value: number | undefined, availableUnits: number) {
+    const candidate = typeof value === "number" ? value : 1;
+
+    if (!Number.isFinite(candidate) || candidate < 1) {
+      throw new ServiceError(ServiceErrorCode.VALIDATION_ERROR, "Units rented must be at least 1.");
+    }
+
+    const normalizedValue = Math.trunc(candidate);
+
+    if (normalizedValue > availableUnits) {
+      throw new ServiceError(
+        ServiceErrorCode.VALIDATION_ERROR,
+        `You only have ${availableUnits} available unit${availableUnits === 1 ? "" : "s"} to allocate.`
+      );
+    }
+
+    return normalizedValue;
   }
 
   private toNumber(value: number | string | null | undefined) {

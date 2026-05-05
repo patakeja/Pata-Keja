@@ -25,6 +25,7 @@ type EditFormState = {
   price: string;
   totalUnits: string;
   availableUnits: string;
+  bookingCapacityPerUnit: string;
   depositAmount: string;
   holdDurationHours: string;
   availableFrom: string;
@@ -48,6 +49,7 @@ function buildFormState(house: LandlordHouseRecord): EditFormState {
     price: String(house.price),
     totalUnits: String(house.totalUnits),
     availableUnits: String(house.availableUnits),
+    bookingCapacityPerUnit: String(house.bookingCapacityPerUnit),
     depositAmount: String(house.depositAmount),
     holdDurationHours: String(house.holdDurationHours),
     availableFrom: house.availableFrom ?? "",
@@ -94,6 +96,7 @@ export function LandlordHouseEditor({
         price: Number(formState.price),
         totalUnits: Number(formState.totalUnits),
         availableUnits: Number(formState.availableUnits),
+        bookingCapacityPerUnit: Number(formState.bookingCapacityPerUnit),
         depositAmount: Number(formState.depositAmount),
         holdDurationHours: Number(formState.holdDurationHours),
         availableFrom: formState.availableFrom.trim() || null,
@@ -192,6 +195,19 @@ export function LandlordHouseEditor({
               </div>
 
               <div className="space-y-1">
+                <label className="text-[11px] font-medium text-foreground">Booking queue per unit</label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={formState.bookingCapacityPerUnit}
+                  onChange={(event) => updateField("bookingCapacityPerUnit", event.target.value)}
+                  disabled={isSaving}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
                 <label className="text-[11px] font-medium text-foreground">Deposit amount</label>
                 <Input
                   type="number"
@@ -215,6 +231,10 @@ export function LandlordHouseEditor({
                   disabled={isSaving}
                   required
                 />
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground md:col-span-2">
+                Active booking capacity is recalculated from available units multiplied by the booking queue per unit.
               </div>
 
               <div className="space-y-1 md:col-span-2">

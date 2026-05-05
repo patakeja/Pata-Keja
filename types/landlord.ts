@@ -33,6 +33,7 @@ export type UpdateLandlordListingInput = {
   price?: number;
   totalUnits?: number;
   availableUnits?: number;
+  bookingCapacityPerUnit?: number;
   availableFrom?: string | null;
   depositAmount?: number;
   holdDurationHours?: number;
@@ -52,6 +53,7 @@ export type RentalLogRecord = {
   listingId: string;
   landlordId: string;
   bookingId: string | null;
+  unitsCount: number;
   source: RentalSource;
   notes: string | null;
   adminReviewRequired: boolean;
@@ -63,11 +65,12 @@ export type RentalLogRecord = {
 export type MarkHouseAsRentedInput = {
   listingId: string;
   source: RentalSource;
-  bookingId?: string | null;
+  bookingIds?: string[];
+  unitsCount?: number;
   notes?: string | null;
 };
 
 export type MarkHouseAsRentedResult = {
   listing: LandlordHouseRecord;
-  rentalEvent: RentalLogRecord;
+  rentalEvents: RentalLogRecord[];
 };

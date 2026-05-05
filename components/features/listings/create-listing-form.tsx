@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { houseTypeLabels, listingTypeLabels } from "@/config/listingPresentation";
 import { adminService } from "@/lib/adminService";
+import { paymentService } from "@/lib/paymentService";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { listingPublishingService } from "@/lib/listingPublishingService";
 import { listingService } from "@/lib/listingService";
@@ -47,6 +48,7 @@ type ListingFormState = {
   areaId: string;
   totalUnits: string;
   availableUnits: string;
+  bookingCapacityPerUnit: string;
   depositAmount: string;
   holdDurationHours: string;
   availableFrom: string;
@@ -59,7 +61,7 @@ const inputClassName =
 const textareaClassName =
   "flex min-h-28 w-full rounded-xl border border-input bg-white px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
 
-function buildInitialFormState(landlordId = ""): ListingFormState {
+function buildInitialFormState(landlordId = "", bookingCapacityPerUnit = "1"): ListingFormState {
   return {
     landlordId,
     title: "",
@@ -72,6 +74,7 @@ function buildInitialFormState(landlordId = ""): ListingFormState {
     areaId: "",
     totalUnits: "1",
     availableUnits: "1",
+    bookingCapacityPerUnit,
     depositAmount: "0",
     holdDurationHours: "72",
     availableFrom: "",
@@ -113,6 +116,7 @@ function buildCreateListingInput(state: ListingFormState): CreateListingInput {
     areaId: parseRequiredInteger(state.areaId),
     totalUnits: parseRequiredInteger(state.totalUnits),
     availableUnits: parseRequiredInteger(state.availableUnits),
+    bookingCapacityPerUnit: parseRequiredInteger(state.bookingCapacityPerUnit),
     depositAmount: parseOptionalNumber(state.depositAmount),
     holdDurationHours: parseRequiredInteger(state.holdDurationHours),
     availableFrom: state.availableFrom.trim() || null,
@@ -131,6 +135,7 @@ export function CreateListingForm({
 }: CreateListingFormProps) {
   const router = useRouter();
   const [formState, setFormState] = useState<ListingFormState>(() => buildInitialFormState());
+  const [defaultBookingCapacityPerUnit, setDefaultBookingCapacityPerUnit] = useState("1");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [landlordOptions, setLandlordOptions] = useState<AdminUserRoleEntry[]>([]);
   const [catalog, setCatalog] = useState<ListingLocationCatalog>({
@@ -160,6 +165,31 @@ export function CreateListingForm({
   useEffect(() => {
     let isMounted = true;
 
+    async function loadDefaultBookingCapacity() {
+      if (!isSupabaseReady) {
+        return;
+      }
+
+      try {
+        const financeSettings = await paymentService.getFinanceSettings();
+        const nextDefaultValue = String(financeSettings.bookingCapacityMultiplier);
+
+        if (isMounted) {
+          setDefaultBookingCapacityPerUnit(nextDefaultValue);
+          setFormState((currentState) =>
+            currentState.bookingCapacityPerUnit === "1"
+              ? {
+                  ...currentState,
+                  bookingCapacityPerUnit: nextDefaultValue
+                }
+              : currentState
+          );
+        }
+      } catch {
+        // Fall back to the local default when finance settings are unavailable.
+      }
+    }
+
     async function loadLocationCatalog() {
       if (!isSupabaseReady) {
         setIsLocationLoading(false);
@@ -183,8 +213,8 @@ export function CreateListingForm({
       }
     }
 
+    void loadDefaultBookingCapacity();
     void loadLocationCatalog();
-
     return () => {
       isMounted = false;
     };
@@ -288,7 +318,7 @@ export function CreateListingForm({
 
       if (!redirectOnSuccess) {
         const retainedLandlordId = requiresLandlordSelection ? formState.landlordId : "";
-        setFormState(buildInitialFormState(retainedLandlordId));
+        setFormState(buildInitialFormState(retainedLandlordId, defaultBookingCapacityPerUnit));
         setImageFiles([]);
         setProgress(null);
         setSuccess("House created successfully.");
@@ -518,6 +548,25 @@ export function CreateListingForm({
           </div>
 
           <div className="space-y-2">
+            <label htmlFor="booking-capacity-per-unit" className="text-[11px] font-medium text-foreground">
+              Booking queue per unit
+            </label>
+            <Input
+              id="booking-capacity-per-unit"
+              type="number"
+              min="1"
+              step="1"
+              value={formState.bookingCapacityPerUnit}
+              onChange={(event) => updateField("bookingCapacityPerUnit", event.target.value)}
+              disabled={isSubmitting || !isSupabaseReady}
+              required
+            />
+            <p className="text-[11px] text-muted-foreground">
+              `1` means one active booking per available unit. Increase this if you want more people competing for each unit.
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <label htmlFor="available-from" className="text-[11px] font-medium text-foreground">
               Available from
             </label>
@@ -648,7 +697,7 @@ export function CreateListingForm({
           </label>
 
           <div className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground md:col-span-2">
-            Booking capacity is derived automatically from available units and the admin booking multiplier.
+            Active booking capacity is recalculated automatically as available units multiplied by the booking queue per unit.
           </div>
         </CardContent>
       </Card>

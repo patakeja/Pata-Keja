@@ -159,6 +159,7 @@ export class AdminService {
       listingId: row.listing_id,
       landlordId: row.landlord_id,
       bookingId: row.booking_id,
+      unitsCount: row.units_count,
       source: row.source,
       notes: row.notes,
       adminReviewRequired: row.admin_review_required,

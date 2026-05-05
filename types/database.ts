@@ -176,6 +176,7 @@ export type Database = {
           area_id: number;
           total_units: number;
           available_units: number;
+          booking_capacity_per_unit: number;
           max_active_bookings: number;
           deposit_amount: number;
           hold_duration_hours: number;
@@ -204,6 +205,7 @@ export type Database = {
           area_id: number;
           total_units?: number;
           available_units?: number;
+          booking_capacity_per_unit?: number;
           max_active_bookings?: number;
           deposit_amount?: number;
           hold_duration_hours?: number;
@@ -232,6 +234,7 @@ export type Database = {
           area_id?: number;
           total_units?: number;
           available_units?: number;
+          booking_capacity_per_unit?: number;
           max_active_bookings?: number;
           deposit_amount?: number;
           hold_duration_hours?: number;
@@ -726,6 +729,7 @@ export type Database = {
           listing_id: string;
           landlord_id: string;
           booking_id: string | null;
+          units_count: number;
           source: RentalSource;
           notes: string | null;
           admin_review_required: boolean;
@@ -738,6 +742,7 @@ export type Database = {
           listing_id: string;
           landlord_id: string;
           booking_id?: string | null;
+          units_count?: number;
           source: RentalSource;
           notes?: string | null;
           admin_review_required?: boolean;
@@ -750,6 +755,7 @@ export type Database = {
           listing_id?: string;
           landlord_id?: string;
           booking_id?: string | null;
+          units_count?: number;
           source?: RentalSource;
           notes?: string | null;
           admin_review_required?: boolean;

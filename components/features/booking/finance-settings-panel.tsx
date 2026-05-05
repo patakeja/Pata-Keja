@@ -87,6 +87,7 @@ export function FinanceSettingsPanel() {
           <h2 className="text-sm font-semibold text-foreground">Refund settings</h2>
           <p className="text-xs text-muted-foreground">
             This percentage is applied to confirmed deposit payments when expired bookings are refunded.
+            The booking multiplier below is used as the default queue-per-unit value for newly created houses.
           </p>
         </div>
 
@@ -108,7 +109,7 @@ export function FinanceSettingsPanel() {
           </div>
           <div className="space-y-1">
             <label htmlFor="bookingCapacityMultiplier" className="text-[11px] font-medium text-foreground">
-              Booking multiplier
+              Default booking multiplier
             </label>
             <Input
               id="bookingCapacityMultiplier"
@@ -132,7 +133,7 @@ export function FinanceSettingsPanel() {
             <p className="mt-1 text-sm font-semibold text-foreground">{refundPercentage}%</p>
           </div>
           <div className="rounded-md bg-muted px-2 py-2">
-            <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Capacity rule</p>
+            <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Default queue rule</p>
             <p className="mt-1 text-sm font-semibold text-foreground">{bookingCapacityMultiplier}x per unit</p>
           </div>
           <div className="rounded-md bg-muted px-2 py-2">

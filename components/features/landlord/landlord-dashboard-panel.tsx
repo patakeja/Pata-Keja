@@ -111,7 +111,7 @@ export function LandlordDashboardPanel() {
           <div className="rounded-md border border-border/70 bg-white px-2 py-2">
             <p className="text-xs font-semibold text-foreground">Manage availability fast</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Available units now drive your booking capacity automatically through the admin multiplier.
+              Available units now drive booking capacity together with each house queue-per-unit setting.
             </p>
           </div>
           <div className="rounded-md border border-border/70 bg-white px-2 py-2">
