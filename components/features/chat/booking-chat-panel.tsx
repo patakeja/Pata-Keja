@@ -55,6 +55,8 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [thread, setThread] = useState<ConversationThread | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,17 +83,10 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
     [bookingId]
   );
 
-  const loadBookingConversation = useCallback(async () => {
-    const [nextBooking, nextThread] = await Promise.all([
-      bookingService.getBookingById(bookingId),
-      chatService.getBookingConversation(bookingId)
-    ]);
-
+  const loadBookingDetails = useCallback(async () => {
+    const nextBooking = await bookingService.getBookingById(bookingId);
     setBooking(nextBooking);
-    setThread(nextThread);
     setError(null);
-    setChatError(null);
-    await chatService.markConversationAsRead(nextThread.id).catch(() => undefined);
   }, [bookingId]);
 
   useEffect(() => {
@@ -99,7 +94,7 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
 
     void (async () => {
       try {
-        await loadBookingConversation();
+        await loadBookingDetails();
       } catch (loadError) {
         if (isMounted) {
           setError(getErrorMessage(loadError, "Something went wrong while loading this booking."));
@@ -114,10 +109,10 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
     return () => {
       isMounted = false;
     };
-  }, [loadBookingConversation]);
+  }, [loadBookingDetails]);
 
   useEffect(() => {
-    if (!conversationId || !otherParticipantId || !currentUserId) {
+    if (!isChatModalOpen || !conversationId || !otherParticipantId || !currentUserId) {
       return undefined;
     }
 
@@ -170,7 +165,25 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
         realtimeControllerRef.current = null;
       }
     };
-  }, [conversationId, currentUserId, otherParticipantId, refreshThread]);
+  }, [conversationId, currentUserId, isChatModalOpen, otherParticipantId, refreshThread]);
+
+  useEffect(() => {
+    if (!isChatModalOpen || !conversationId) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (document.hidden) {
+        return;
+      }
+
+      void refreshThread(true).catch((messageError) => {
+        setChatError(getErrorMessage(messageError, "Something went wrong while refreshing chat."));
+      });
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, [conversationId, isChatModalOpen, refreshThread]);
 
   useEffect(() => {
     if (!toast) {
@@ -307,11 +320,18 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
     });
   }
 
-  function scrollToChat() {
-    document.getElementById("booking-chat-section")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    });
+  async function handleOpenChatModal() {
+    setIsChatModalOpen(true);
+    setIsChatLoading(true);
+    setChatError(null);
+
+    try {
+      await refreshThread(Boolean(thread));
+    } catch (loadError) {
+      setChatError(getErrorMessage(loadError, "Unable to load the chat right now."));
+    } finally {
+      setIsChatLoading(false);
+    }
   }
 
   if (isLoading) {
@@ -322,7 +342,7 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
     );
   }
 
-  if (!booking || !thread) {
+  if (!booking) {
     return (
       <Card>
         <CardContent className="space-y-2 py-6">
@@ -337,7 +357,9 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
   }
 
   const typingLabel =
-    thread.typingUserId === thread.otherParticipant.id ? `${getFirstName(thread.otherParticipant.fullName)} typing...` : null;
+    thread && thread.typingUserId === thread.otherParticipant.id
+      ? `${getFirstName(thread.otherParticipant.fullName)} typing...`
+      : null;
 
   return (
     <div className="space-y-3">
@@ -362,8 +384,8 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
           <p className="text-xs leading-5 text-muted-foreground">{booking.listing.description}</p>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="md" onClick={scrollToChat}>
-              Chat
+            <Button type="button" variant="outline" size="md" onClick={() => void handleOpenChatModal()}>
+              Chat with landlord
             </Button>
             <CallLandlordButton phone={booking.listing.landlordPhone} />
             {booking.paymentSummary.canPayRent ? (
@@ -394,24 +416,57 @@ export function BookingChatPanel({ bookingId }: BookingChatPanelProps) {
         </CardContent>
       </Card>
 
-      <div id="booking-chat-section">
-        <ChatThreadPanel
-          thread={thread}
-          viewer="tenant"
-          title={booking.listing.landlordName ?? "Landlord"}
-          subtitle={booking.listing.title}
-          statusLine={formatPresenceLabel(thread.otherParticipantIsOnline, thread.otherParticipantLastSeen)}
-          typingLabel={typingLabel}
-          headerAction={<CallLandlordButton phone={booking.listing.landlordPhone} variant="icon" />}
-          isSending={isSending}
-          isLoadingOlder={isLoadingOlder}
-          error={chatError}
-          onSend={handleSend}
-          onDeleteMessage={handleDeleteMessage}
-          onLoadOlder={handleLoadOlderMessages}
-          onTypingChange={handleTypingChange}
-        />
-      </div>
+      {isChatModalOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/45 p-3 md:p-6">
+          <div className="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <div className="space-y-0.5">
+                <p className="text-sm font-semibold text-foreground">
+                  Chat with {booking.listing.landlordName ?? "landlord"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">{booking.listing.title}</p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setIsChatModalOpen(false)}>
+                Close
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3">
+              {isChatLoading && !thread ? (
+                <Card>
+                  <CardContent className="py-6 text-xs text-muted-foreground">Loading chat...</CardContent>
+                </Card>
+              ) : thread ? (
+                <ChatThreadPanel
+                  thread={thread}
+                  viewer="tenant"
+                  title={booking.listing.landlordName ?? "Landlord"}
+                  subtitle={booking.listing.title}
+                  statusLine={formatPresenceLabel(thread.otherParticipantIsOnline, thread.otherParticipantLastSeen)}
+                  typingLabel={typingLabel}
+                  headerAction={<CallLandlordButton phone={booking.listing.landlordPhone} variant="icon" />}
+                  isSending={isSending}
+                  isLoadingOlder={isLoadingOlder}
+                  error={chatError}
+                  onSend={handleSend}
+                  onDeleteMessage={handleDeleteMessage}
+                  onLoadOlder={handleLoadOlderMessages}
+                  onTypingChange={handleTypingChange}
+                />
+              ) : (
+                <Card>
+                  <CardContent className="space-y-2 py-6">
+                    <p className="text-xs text-rose-700">{chatError ?? "We could not load this chat."}</p>
+                    <Button type="button" variant="outline" onClick={() => void handleOpenChatModal()}>
+                      Retry
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
